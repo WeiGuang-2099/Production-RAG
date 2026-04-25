@@ -1,0 +1,20 @@
+[
+  {
+    "question": "What is machine learning?",
+    "ground_truth": "Machine learning is a subset of artificial intelligence that enables systems to learn from data.",
+    "contexts": ["Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed."],
+    "answer": ""
+  },
+  {
+    "question": "What is a neural network?",
+    "ground_truth": "A neural network is a computing system inspired by biological neural networks.",
+    "contexts": ["Neural networks are computing systems vaguely inspired by biological neural networks that constitute animal brains."],
+    "answer": ""
+  },
+  {
+    "question": "What is Python used for?",
+    "ground_truth": "Python is used for web development, data analysis, AI, and scripting.",
+    "contexts": ["Python is a high-level programming language used for web development, data analysis, artificial intelligence, and scripting."],
+    "answer": ""
+  }
+]
