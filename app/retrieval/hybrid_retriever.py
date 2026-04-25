@@ -1,4 +1,12 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from langchain_core.documents import Document
+
+if TYPE_CHECKING:
+    from app.retrieval.vector_store import VectorStore
+    from app.retrieval.bm25_store import BM25Store
 
 
 def rrf_fuse(
@@ -22,7 +30,7 @@ def rrf_fuse(
 
 
 class HybridRetriever:
-    def __init__(self, vector_store, bm25_store):
+    def __init__(self, vector_store: VectorStore, bm25_store: BM25Store) -> None:
         self.vector_store = vector_store
         self.bm25_store = bm25_store
 

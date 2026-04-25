@@ -16,8 +16,11 @@ class RerankerService:
             top_n=top_k,
         )
         reranked = []
-        for result in results.results:
-            doc = documents[result.index]
-            doc.metadata["relevance_score"] = result.relevance_score
-            reranked.append(doc)
+        for result in results:
+            doc = documents[result["index"]]
+            new_doc = Document(
+                page_content=doc.page_content,
+                metadata={**doc.metadata, "relevance_score": result["relevance_score"]},
+            )
+            reranked.append(new_doc)
         return reranked

@@ -1,7 +1,10 @@
+import logging
 import pickle
 from pathlib import Path
 from rank_bm25 import BM25Okapi
 from langchain_core.documents import Document
+
+logger = logging.getLogger(__name__)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -13,13 +16,17 @@ class BM25Store:
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._documents: list[Document] = []
+        self._tokenized_corpus: list[list[str]] = []
         self._bm25: BM25Okapi | None = None
         self._load()
 
     def add_documents(self, documents: list[Document]) -> None:
+        new_tokenized = [_tokenize(doc.page_content) for doc in documents]
         self._documents.extend(documents)
-        tokenized = [_tokenize(doc.page_content) for doc in self._documents]
-        self._bm25 = BM25Okapi(tokenized)
+        self._tokenized_corpus.extend(new_tokenized)
+        if len(self._documents) > 50000:
+            logger.warning("BM25 index has %d documents; consider migrating to Elasticsearch for scale", len(self._documents))
+        self._bm25 = BM25Okapi(self._tokenized_corpus)
         self._save()
 
     def search(self, query: str, top_k: int = 5) -> list[tuple[Document, float]]:
@@ -33,13 +40,27 @@ class BM25Store:
     def _save(self) -> None:
         if self._bm25 is None:
             return
-        with open(self._data_dir / "bm25_index.pkl", "wb") as f:
-            pickle.dump({"documents": self._documents, "bm25": self._bm25}, f)
+        try:
+            with open(self._data_dir / "bm25_index.pkl", "wb") as f:
+                pickle.dump({
+                    "documents": self._documents,
+                    "tokenized_corpus": self._tokenized_corpus,
+                    "bm25": self._bm25,
+                }, f)
+            logger.debug("BM25 index saved: %d documents", len(self._documents))
+        except Exception as exc:
+            logger.error("Failed to save BM25 index: %s", exc)
 
     def _load(self) -> None:
         path = self._data_dir / "bm25_index.pkl"
-        if path.exists():
+        if not path.exists():
+            return
+        try:
             with open(path, "rb") as f:
                 data = pickle.load(f)
             self._documents = data["documents"]
+            self._tokenized_corpus = data.get("tokenized_corpus", [])
             self._bm25 = data["bm25"]
+            logger.info("BM25 index loaded: %d documents", len(self._documents))
+        except Exception as exc:
+            logger.error("Failed to load BM25 index: %s", exc)

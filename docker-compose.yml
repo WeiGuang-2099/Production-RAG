@@ -7,10 +7,16 @@ services:
       - .env
     depends_on:
       qdrant:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - rag_data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -20,6 +26,12 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
 volumes:
   qdrant_data:

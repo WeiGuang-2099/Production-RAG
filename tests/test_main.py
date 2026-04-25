@@ -1,4 +1,4 @@
-def test_health(client):
-    response = client.get("/health")
+def test_health_live(client):
+    response = client.get("/health/live")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "alive"}

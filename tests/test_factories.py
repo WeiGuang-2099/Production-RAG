@@ -1,6 +1,13 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from app.core.factories import get_llm, get_embedder, get_reranker
+from app.core.factories import get_llm, get_embedder, get_reranker, clear_caches
+
+
+@pytest.fixture(autouse=True)
+def _reset_caches():
+    clear_caches()
+    yield
+    clear_caches()
 
 
 def test_get_llm_openai():
@@ -30,6 +37,7 @@ def test_get_llm_anthropic():
 def test_get_llm_unsupported():
     with patch("app.core.factories.get_settings") as mock_settings:
         mock_settings.return_value.LLM_PROVIDER = "ollama"
+        mock_settings.return_value.LLM_MODEL = "llama3"
         with pytest.raises(ValueError, match="Unsupported LLM provider"):
             get_llm()
 
@@ -60,5 +68,36 @@ def test_get_reranker_cohere():
 def test_get_reranker_none():
     with patch("app.core.factories.get_settings") as mock_settings:
         mock_settings.return_value.RERANKER_PROVIDER = "none"
+        mock_settings.return_value.RERANKER_MODEL = "rerank-v3"
         reranker = get_reranker()
         assert reranker is None
+
+
+def test_caching_returns_same_instance():
+    """Verify that calling get_llm twice returns the cached instance."""
+    with patch("app.core.factories.ChatOpenAI") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        with patch("app.core.factories.get_settings") as mock_settings:
+            mock_settings.return_value.LLM_PROVIDER = "openai"
+            mock_settings.return_value.LLM_MODEL = "gpt-4o"
+            mock_settings.return_value.LLM_API_KEY = "sk-test"
+            mock_settings.return_value.LLM_BASE_URL = None
+            llm1 = get_llm()
+            llm2 = get_llm()
+            assert llm1 is llm2
+            mock_cls.assert_called_once()  # Only created once
+
+
+def test_clear_caches():
+    with patch("app.core.factories.ChatOpenAI") as mock_cls:
+        mock_cls.return_value = MagicMock()
+        with patch("app.core.factories.get_settings") as mock_settings:
+            mock_settings.return_value.LLM_PROVIDER = "openai"
+            mock_settings.return_value.LLM_MODEL = "gpt-4o"
+            mock_settings.return_value.LLM_API_KEY = "sk-test"
+            mock_settings.return_value.LLM_BASE_URL = None
+            get_llm()
+            clear_caches()
+            get_llm()
+            assert mock_cls.call_count == 2  # Created twice after cache clear

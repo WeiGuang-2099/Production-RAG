@@ -1,9 +1,53 @@
+# Byte-compiled / optimized
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.so
+
+# Environments
 .env
 .venv/
+env/
+venv/
+
+# Data & artifacts
 data/
+*.pkl
+*.gpickle
+
+# Packaging
 *.egg-info/
+*.egg
+.eggs/
 dist/
 build/
+
+# Testing
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
+.tox/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific
+.claude/
+.qoder/

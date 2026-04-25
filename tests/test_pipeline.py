@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from langchain_core.documents import Document
 
 
-def test_ingest_pipeline():
+def test_ingest_pipeline(tmp_path):
     with patch("app.core.pipeline.get_embedder") as mock_emb, \
          patch("app.core.pipeline.VectorStore") as mock_vs_cls, \
          patch("app.core.pipeline.BM25Store") as mock_bm25_cls, \
@@ -12,10 +12,12 @@ def test_ingest_pipeline():
          patch("app.core.pipeline.load_documents") as mock_load, \
          patch("app.core.pipeline.chunk_documents") as mock_chunk, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.get_llm") as mock_llm_f:
+         patch("app.core.pipeline.get_llm") as mock_llm_f, \
+         patch("app.core.pipeline._load_tracking", return_value={}), \
+         patch("app.core.pipeline._save_tracking"):
 
         mock_s.return_value.GRAPH_EXTRACTOR = "llm"
-        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.DATA_DIR = str(tmp_path)
         mock_s.return_value.CHUNK_SIZE = 512
         mock_s.return_value.CHUNK_OVERLAP = 64
 
@@ -42,6 +44,7 @@ def test_ingest_pipeline():
         from app.core.pipeline import ingest_pipeline
         result = ingest_pipeline("test.md")
         assert result["chunks"] == 1
+        assert result["status"] == "ingested"
 
 
 def test_query_pipeline():

@@ -1,15 +1,15 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from langchain_core.documents import Document
 
 
 def test_ingest_endpoint(client):
     with patch("app.api.routes_ingest.ingest_pipeline") as mock_ingest:
-        mock_ingest.return_value = {"source": "test.pdf", "chunks": 5}
-        response = client.post("/ingest", json={"source": "test.pdf"})
+        mock_ingest.return_value = {"source": "test.pdf", "chunks": 5, "status": "ingested"}
+        response = client.post("/ingest", json={"source": "https://example.com/doc.pdf"})
         assert response.status_code == 200
         data = response.json()
         assert data["chunks"] == 5
+        assert data["status"] == "ingested"
 
 
 def test_chat_endpoint(client):
@@ -24,6 +24,7 @@ def test_chat_endpoint(client):
         data = response.json()
         assert "answer" in data
         assert len(data["sources"]) == 1
+        assert "total_sources" in data
 
 
 def test_chat_missing_question(client):
@@ -34,3 +35,9 @@ def test_chat_missing_question(client):
 def test_ingest_missing_source(client):
     response = client.post("/ingest", json={})
     assert response.status_code == 422
+
+
+def test_health_live(client):
+    response = client.get("/health/live")
+    assert response.status_code == 200
+    assert response.json()["status"] == "alive"
