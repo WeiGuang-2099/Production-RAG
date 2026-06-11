@@ -1,20 +1,391 @@
 [
   {
-    "question": "What is machine learning?",
-    "ground_truth": "Machine learning is a subset of artificial intelligence that enables systems to learn from data.",
-    "contexts": ["Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed."],
-    "answer": ""
+    "id": "q001",
+    "question": "What does the Transformer architecture eliminate compared to previous sequence transduction models?",
+    "ground_truth": "The Transformer eliminates recurrence and convolutions entirely, relying solely on attention mechanisms to draw global dependencies between input and output.",
+    "source_papers": ["attention"],
+    "type": "factual",
+    "difficulty": "easy"
   },
   {
-    "question": "What is a neural network?",
-    "ground_truth": "A neural network is a computing system inspired by biological neural networks.",
-    "contexts": ["Neural networks are computing systems vaguely inspired by biological neural networks that constitute animal brains."],
-    "answer": ""
+    "id": "q002",
+    "question": "How is scaled dot-product attention computed?",
+    "ground_truth": "Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V, where d_k is the dimension of the keys. The scaling factor 1/sqrt(d_k) is used to counteract large dot products that would push softmax into regions with small gradients.",
+    "source_papers": ["attention"],
+    "type": "factual",
+    "difficulty": "medium"
   },
   {
-    "question": "What is Python used for?",
-    "ground_truth": "Python is used for web development, data analysis, AI, and scripting.",
-    "contexts": ["Python is a high-level programming language used for web development, data analysis, artificial intelligence, and scripting."],
-    "answer": ""
+    "id": "q003",
+    "question": "How many heads does the original base Transformer use in its multi-head attention?",
+    "ground_truth": "8 heads.",
+    "source_papers": ["attention"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q004",
+    "question": "What are the two pre-training objectives used by BERT?",
+    "ground_truth": "Masked Language Modeling (MLM) and Next Sentence Prediction (NSP).",
+    "source_papers": ["bert"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q005",
+    "question": "How many parameters does BERT-Base have?",
+    "ground_truth": "110 million parameters.",
+    "source_papers": ["bert"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q006",
+    "question": "What is the role of the [CLS] token in BERT?",
+    "ground_truth": "It is a special classification token prepended to every input sequence; its final hidden state is used as the aggregate sequence representation for classification tasks.",
+    "source_papers": ["bert"],
+    "type": "factual",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q007",
+    "question": "How many parameters does the largest GPT-3 model contain?",
+    "ground_truth": "175 billion parameters.",
+    "source_papers": ["gpt3"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q008",
+    "question": "What learning paradigm does GPT-3 emphasize that requires no gradient updates?",
+    "ground_truth": "In-context learning, evaluated in zero-shot, one-shot, and few-shot settings where the model conditions on natural-language instructions or a few demonstrations at inference time.",
+    "source_papers": ["gpt3"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q009",
+    "question": "What are the two components that make up the RAG model?",
+    "ground_truth": "A parametric memory (a pre-trained seq2seq Transformer) and a non-parametric memory (a dense vector index of Wikipedia accessed via a pre-trained neural retriever).",
+    "source_papers": ["rag"],
+    "type": "factual",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q010",
+    "question": "What are the two RAG variants introduced in the paper?",
+    "ground_truth": "RAG-Sequence, which uses the same retrieved document for the entire output sequence, and RAG-Token, which can use a different retrieved document for each generated token.",
+    "source_papers": ["rag"],
+    "type": "factual",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q011",
+    "question": "What does the acronym LoRA stand for?",
+    "ground_truth": "Low-Rank Adaptation.",
+    "source_papers": ["lora"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q012",
+    "question": "What is the core idea behind LoRA's parameter efficiency?",
+    "ground_truth": "LoRA freezes the pre-trained model weights and injects trainable low-rank decomposition matrices (rank-r matrices A and B) into selected layers of the Transformer, training only these small matrices instead of the full weights.",
+    "source_papers": ["lora"],
+    "type": "factual",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q013",
+    "question": "By what factor can LoRA reduce the number of trainable parameters when adapting GPT-3 175B?",
+    "ground_truth": "By up to 10,000 times.",
+    "source_papers": ["lora"],
+    "type": "factual",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q014",
+    "question": "What is chain-of-thought prompting?",
+    "ground_truth": "A prompting technique that provides a few exemplars containing intermediate reasoning steps so that a large language model produces a similar step-by-step reasoning chain before giving its final answer.",
+    "source_papers": ["cot"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q015",
+    "question": "On what kinds of tasks does chain-of-thought prompting show the largest gains?",
+    "ground_truth": "Arithmetic, commonsense, and symbolic reasoning tasks.",
+    "source_papers": ["cot"],
+    "type": "factual",
+    "difficulty": "easy"
+  },
+
+  {
+    "id": "q016",
+    "question": "Which architecture, introduced in 'Attention Is All You Need', serves as the foundation for both BERT and GPT-3?",
+    "ground_truth": "The Transformer architecture.",
+    "source_papers": ["attention", "bert", "gpt3"],
+    "type": "multi_hop",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q017",
+    "question": "Both BERT and GPT-3 build on the Transformer; what is the key architectural difference between them?",
+    "ground_truth": "BERT is a bidirectional encoder-only Transformer trained with masked language modeling, while GPT-3 is a unidirectional (left-to-right) autoregressive decoder-only Transformer.",
+    "source_papers": ["bert", "gpt3"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q018",
+    "question": "Roughly how much larger is GPT-3's biggest model than BERT-Large in parameter count?",
+    "ground_truth": "GPT-3 has 175B parameters versus BERT-Large's 340M, so GPT-3 is roughly 500 times larger.",
+    "source_papers": ["bert", "gpt3"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q019",
+    "question": "What pre-trained seq2seq model serves as the generator in the original RAG paper?",
+    "ground_truth": "BART, a pre-trained denoising autoencoder seq2seq Transformer.",
+    "source_papers": ["rag"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q020",
+    "question": "What is the largest model that LoRA is evaluated on, and how many parameters does it have?",
+    "ground_truth": "GPT-3 with 175 billion parameters.",
+    "source_papers": ["lora", "gpt3"],
+    "type": "multi_hop",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q021",
+    "question": "Chain-of-thought prompting was shown to work best at what scale of language models?",
+    "ground_truth": "Sufficiently large models, roughly 100B parameters and above (for example PaLM 540B and GPT-3 175B); CoT provides little or no benefit for small models.",
+    "source_papers": ["cot", "gpt3"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q022",
+    "question": "Which open-domain question-answering benchmarks does the RAG paper evaluate on?",
+    "ground_truth": "Natural Questions (NQ), TriviaQA, WebQuestions, and CuratedTrec.",
+    "source_papers": ["rag"],
+    "type": "multi_hop",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q023",
+    "question": "What is one practical advantage LoRA has over adapter-based fine-tuning methods?",
+    "ground_truth": "LoRA introduces no additional inference latency because the trained low-rank updates can be merged into the original weight matrices, whereas adapters add extra layers that incur runtime overhead.",
+    "source_papers": ["lora"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q024",
+    "question": "How does the positional encoding used in the original Transformer differ from that used in BERT?",
+    "ground_truth": "The original Transformer uses fixed sinusoidal positional encodings, while BERT uses learned positional embeddings.",
+    "source_papers": ["attention", "bert"],
+    "type": "multi_hop",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q025",
+    "question": "What dense retriever is used to build RAG's non-parametric memory over Wikipedia?",
+    "ground_truth": "DPR (Dense Passage Retrieval).",
+    "source_papers": ["rag"],
+    "type": "multi_hop",
+    "difficulty": "medium"
+  },
+
+  {
+    "id": "q026",
+    "question": "How does in-context learning in GPT-3 differ from traditional fine-tuning?",
+    "ground_truth": "In-context learning conditions the model on a natural-language prompt with zero or a few demonstrations at inference time and never updates model weights, whereas fine-tuning updates parameters via gradient descent on a task-specific labeled dataset.",
+    "source_papers": ["gpt3"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q027",
+    "question": "What is the difference between BERT's masked language modeling and GPT-style left-to-right language modeling?",
+    "ground_truth": "MLM randomly masks tokens in a sequence and predicts each from its bidirectional context, while left-to-right LM predicts the next token autoregressively conditioned only on past tokens.",
+    "source_papers": ["bert", "gpt3"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q028",
+    "question": "Compare LoRA's parameter efficiency to full fine-tuning.",
+    "ground_truth": "LoRA trains only a tiny fraction of parameters (often under 0.1% of the original model) by learning low-rank updates, while full fine-tuning updates all model parameters; LoRA reaches comparable or better task performance with vastly less memory and storage.",
+    "source_papers": ["lora"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q029",
+    "question": "How does encoder-decoder attention in the Transformer differ from self-attention?",
+    "ground_truth": "In self-attention, queries, keys and values all come from the same sequence; in encoder-decoder attention, queries come from the previous decoder layer while keys and values come from the encoder output.",
+    "source_papers": ["attention"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q030",
+    "question": "What advantage does RAG-Token have over RAG-Sequence?",
+    "ground_truth": "RAG-Token can draw on different retrieved documents when generating different tokens of the same output, which is beneficial when the answer requires synthesising information from multiple documents.",
+    "source_papers": ["rag"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q031",
+    "question": "How does standard prompting compare with chain-of-thought prompting on math word problems such as GSM8K?",
+    "ground_truth": "Standard prompting performs poorly on GSM8K, while chain-of-thought prompting substantially boosts accuracy, with the largest gains on the largest models.",
+    "source_papers": ["cot"],
+    "type": "comparative",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q032",
+    "question": "What distinguishes BERT's pre-training stage from its fine-tuning stage?",
+    "ground_truth": "Pre-training trains BERT on large unlabeled corpora with the MLM and NSP objectives; fine-tuning adapts the pre-trained model to a downstream task by training on a labeled dataset with minimal task-specific architecture added on top.",
+    "source_papers": ["bert"],
+    "type": "comparative",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q033",
+    "question": "What trade-off does the LoRA rank hyperparameter r represent?",
+    "ground_truth": "A smaller r means fewer trainable parameters and lower memory cost but less expressive updates, while a larger r increases capacity at a higher parameter and memory cost; the paper shows even very small r (e.g. 1, 2, 4) often suffices.",
+    "source_papers": ["lora"],
+    "type": "comparative",
+    "difficulty": "hard"
+  },
+
+  {
+    "id": "q034",
+    "question": "What BLEU score does the big Transformer achieve on the WMT 2014 English-to-German translation task?",
+    "ground_truth": "28.4 BLEU.",
+    "source_papers": ["attention"],
+    "type": "numerical",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q035",
+    "question": "How many Transformer layers does BERT-Base have?",
+    "ground_truth": "12 layers.",
+    "source_papers": ["bert"],
+    "type": "numerical",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q036",
+    "question": "What is the context window length used by GPT-3?",
+    "ground_truth": "2048 tokens.",
+    "source_papers": ["gpt3"],
+    "type": "numerical",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q037",
+    "question": "By roughly what factor does LoRA reduce the GPU memory required to fine-tune GPT-3 175B compared with Adam-based full fine-tuning?",
+    "ground_truth": "Roughly 3x (about 1.2TB of VRAM down to about 350GB).",
+    "source_papers": ["lora"],
+    "type": "numerical",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q038",
+    "question": "What is the dimensionality d_model used in the base Transformer?",
+    "ground_truth": "512.",
+    "source_papers": ["attention"],
+    "type": "numerical",
+    "difficulty": "medium"
+  },
+
+  {
+    "id": "q039",
+    "question": "What was the carbon footprint of training the original Transformer reported in 'Attention Is All You Need'?",
+    "ground_truth": "The paper does not report a carbon footprint or environmental impact for training the Transformer.",
+    "source_papers": ["attention"],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q040",
+    "question": "What SuperGLUE score does BERT achieve in the original BERT paper?",
+    "ground_truth": "The BERT paper does not report SuperGLUE results; SuperGLUE was introduced after BERT was published.",
+    "source_papers": ["bert"],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q041",
+    "question": "How much did it cost in USD to train GPT-3?",
+    "ground_truth": "The GPT-3 paper does not state an exact dollar cost of training.",
+    "source_papers": ["gpt3"],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q042",
+    "question": "Does the LoRA paper evaluate LoRA on convolutional neural networks?",
+    "ground_truth": "No. The LoRA paper focuses on Transformer-based language models and does not evaluate LoRA on convolutional neural networks.",
+    "source_papers": ["lora"],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q043",
+    "question": "Does the chain-of-thought paper evaluate CoT prompting on image classification tasks?",
+    "ground_truth": "No. The chain-of-thought paper studies reasoning over text (arithmetic, commonsense, and symbolic reasoning) and does not evaluate image classification.",
+    "source_papers": ["cot"],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+
+  {
+    "id": "q044",
+    "question": "How are the LoRA matrices A and B initialised, and what is the consequence for the initial update?",
+    "ground_truth": "A is initialised with a random Gaussian and B is initialised to zero, so the initial product BA is zero and the LoRA update contributes nothing at the start of training.",
+    "source_papers": ["lora"],
+    "type": "long_tail",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q045",
+    "question": "What dropout probability does BERT use during pre-training?",
+    "ground_truth": "0.1.",
+    "source_papers": ["bert"],
+    "type": "long_tail",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q046",
+    "question": "What inner feed-forward dimension d_ff is used in the base Transformer?",
+    "ground_truth": "2048.",
+    "source_papers": ["attention"],
+    "type": "long_tail",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q047",
+    "question": "What value of K (number of retrieved passages) does the RAG paper use in its main experiments?",
+    "ground_truth": "K = 5 retrieved passages (with some ablations exploring values up to 10).",
+    "source_papers": ["rag"],
+    "type": "long_tail",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q048",
+    "question": "What decoding strategy is used in the main chain-of-thought experiments?",
+    "ground_truth": "Greedy decoding (the paper later explores self-consistency with sampling as a separate extension).",
+    "source_papers": ["cot"],
+    "type": "long_tail",
+    "difficulty": "hard"
   }
 ]
