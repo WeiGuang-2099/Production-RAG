@@ -26,8 +26,8 @@ class IngestRequest(BaseModel):
         settings = get_settings()
         data_dir = Path(settings.DATA_DIR).resolve()
         file_path = Path(v).resolve()
-        # Security: must be within DATA_DIR
-        if not str(file_path).startswith(str(data_dir)):
+        # Security: must be within DATA_DIR (string prefix is bypassable, e.g. /data-evil)
+        if not file_path.is_relative_to(data_dir):
             raise ValueError(f"File path must be within DATA_DIR ({data_dir})")
         if not file_path.exists():
             raise ValueError(f"File not found: {v}")

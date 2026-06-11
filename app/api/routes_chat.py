@@ -34,7 +34,7 @@ class ChatResponse(BaseModel):
 @router.post("", response_model=ChatResponse)
 @limiter.limit("30/minute")
 async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)):
-    result = await asyncio.to_thread(query_pipeline, body.question)
+    result = await asyncio.to_thread(query_pipeline, body.question, body.top_k)
     sources = result.get("sources", [])
     return ChatResponse(
         answer=result["answer"],
@@ -49,7 +49,7 @@ async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)
 async def chat_stream(request: Request, body: ChatRequest, _key=Depends(verify_api_key)):
     async def event_generator():
         try:
-            result = await asyncio.to_thread(query_pipeline, body.question)
+            result = await asyncio.to_thread(query_pipeline, body.question, body.top_k)
             # Emit sources first
             yield json.dumps({
                 "event": "retrieval_complete",

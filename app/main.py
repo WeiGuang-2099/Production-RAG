@@ -23,11 +23,13 @@ app = FastAPI(title="Production RAG", version="0.2.0")
 # ── Middleware ──────────────────────────────────────────
 settings = get_settings()
 
-# CORS
+# CORS: browsers reject credentials together with a wildcard origin,
+# so only enable credentials when explicit origins are configured
+cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",")],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials="*" not in cors_origins,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID"],

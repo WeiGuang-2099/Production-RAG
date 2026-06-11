@@ -16,6 +16,7 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "networkx>=3.4.0",
     "cohere>=5.13.0",
+    "langchain-cohere>=0.3.0",
     "langsmith>=0.2.0",
     "python-multipart>=0.0.12",
     "httpx>=0.28.0",
@@ -39,7 +40,10 @@ dev = [
 
 [build-system]
 requires = ["setuptools>=75.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

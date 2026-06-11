@@ -93,3 +93,69 @@ def test_query_pipeline():
         result = query_pipeline("What is AI?")
         assert result["answer"] == "Generated answer"
         assert len(result["sources"]) > 0
+
+
+def test_query_pipeline_returns_full_source_content():
+    """Sources must carry full chunk content; truncation corrupts RAGAS evaluation."""
+    long_content = "x" * 600
+
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
+    mock_prompt = MagicMock()
+    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
+
+    with patch("app.core.pipeline.get_llm"), \
+         patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_cpt.from_template.return_value = mock_prompt
+
+        doc = Document(page_content=long_content)
+        mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
+        mock_rs_cls.return_value.rerank.return_value = [doc]
+
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("What is AI?")
+        assert result["sources"][0]["content"] == long_content
+
+
+def test_query_pipeline_respects_top_k_argument():
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
+    mock_prompt = MagicMock()
+    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
+
+    with patch("app.core.pipeline.get_llm"), \
+         patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_cpt.from_template.return_value = mock_prompt
+
+        doc = Document(page_content="context doc")
+        mock_retriever = mock_hr_cls.return_value
+        mock_retriever.retrieve.return_value = [(doc, 0.9)]
+        mock_rs_cls.return_value.rerank.return_value = [doc]
+
+        from app.core.pipeline import query_pipeline
+        query_pipeline("What is AI?", top_k=12)
+        mock_retriever.retrieve.assert_called_once_with("What is AI?", top_k=12)

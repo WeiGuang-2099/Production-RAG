@@ -129,8 +129,10 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
 
 # ── Query Pipeline ───────────────────────────────────────
 
-def query_pipeline(question: str) -> dict:
+def query_pipeline(question: str, top_k: int | None = None) -> dict:
     settings = get_settings()
+    if top_k is None:
+        top_k = settings.TOP_K
     start = time.time()
     logger.info("query_start: question=%s", question[:100])
 
@@ -140,7 +142,7 @@ def query_pipeline(question: str) -> dict:
         vs = VectorStore()
         bm25 = BM25Store(data_dir=settings.DATA_DIR)
         retriever = HybridRetriever(vector_store=vs, bm25_store=bm25)
-        hybrid_results = retriever.retrieve(question, top_k=settings.TOP_K)
+        hybrid_results = retriever.retrieve(question, top_k=top_k)
         logger.info("hybrid_retrieval_complete: hits=%d", len(hybrid_results))
     except Exception as exc:
         logger.error("hybrid_retrieval_failed: %s", exc)
@@ -195,6 +197,6 @@ def query_pipeline(question: str) -> dict:
 
     return {
         "answer": answer,
-        "sources": [{"content": d.page_content[:200], "metadata": d.metadata} for d in reranked],
+        "sources": [{"content": d.page_content, "metadata": d.metadata} for d in reranked],
         "latency_ms": total_ms,
     }

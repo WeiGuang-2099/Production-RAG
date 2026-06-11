@@ -167,7 +167,8 @@ def latency_stats(records: list[dict]) -> dict:
     if not lats:
         return {}
     lats_sorted = sorted(lats)
-    p95_idx = max(0, int(len(lats) * 0.95) - 1)
+    # Nearest-rank percentile: ceil(p * n) is the rank, -1 for 0-based index
+    p95_idx = max(0, math.ceil(len(lats) * 0.95) - 1)
     return {
         "count": len(lats),
         "mean_ms": mean(lats),

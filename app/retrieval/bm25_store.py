@@ -21,9 +21,17 @@ class BM25Store:
         self._load()
 
     def add_documents(self, documents: list[Document]) -> None:
-        new_tokenized = [_tokenize(doc.page_content) for doc in documents]
-        self._documents.extend(documents)
-        self._tokenized_corpus.extend(new_tokenized)
+        # Skip content already indexed so re-ingestion stays idempotent
+        existing = {doc.page_content for doc in self._documents}
+        new_docs = []
+        for doc in documents:
+            if doc.page_content not in existing:
+                new_docs.append(doc)
+                existing.add(doc.page_content)
+        if not new_docs:
+            return
+        self._documents.extend(new_docs)
+        self._tokenized_corpus.extend(_tokenize(doc.page_content) for doc in new_docs)
         if len(self._documents) > 50000:
             logger.warning("BM25 index has %d documents; consider migrating to Elasticsearch for scale", len(self._documents))
         self._bm25 = BM25Okapi(self._tokenized_corpus)
