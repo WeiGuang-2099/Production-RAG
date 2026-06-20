@@ -108,3 +108,33 @@ share to demonstrate measurable RAG quality.
 Faithfulness + context_recall together catch most "looks-correct-but-isn't"
 failure modes; context_precision catches "we retrieved noise that worked
 out anyway".
+
+## Retrieval ablation (cheap, deterministic)
+
+`run_eval.py` uses RAGAS, which needs an LLM judge (slow + paid). To answer
+the narrower question "is each retrieval component pulling its weight?" use
+`run_ablation.py`, which reports deterministic retrieval metrics computed
+directly from the `source_papers` ground truth — no generation calls:
+
+```bash
+python evaluation/run_ablation.py --k 5
+```
+
+It sweeps four cumulative configurations and prints a comparison table:
+
+| stage | RETRIEVAL_MODE | RERANKER_PROVIDER | GRAPH_EXTRACTOR |
+|---|---|---|---|
+| baseline | dense | none | none |
+| +bm25 | hybrid | none | none |
+| +rerank | hybrid | cohere | none |
+| +graph | hybrid | cohere | (your `.env`) |
+
+Metrics:
+
+- **recall@k** — fraction of the question's ground-truth papers present in the top-k retrieved contexts.
+- **MRR** — 1 / rank of the first relevant context (rewards ranking the right doc high).
+- **hit@k** — did any relevant paper make the top-k at all.
+
+The 5 `unanswerable` questions have no ground-truth papers and are excluded
+from these retrieval metrics. Reports are written to `results/`; see
+[`results/README.md`](results/README.md) for the table to fill in.
