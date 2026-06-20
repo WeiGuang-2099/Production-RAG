@@ -72,6 +72,38 @@ def test_ingest_accepts_path_inside_data_dir(client, tmp_path):
         assert response.status_code == 200
 
 
+def test_chat_endpoint_returns_usage(client):
+    with patch("app.api.routes_chat.query_pipeline") as mock_query:
+        mock_query.return_value = {
+            "answer": "AI is artificial intelligence.",
+            "sources": [{"content": "context", "metadata": {"citation": 1}}],
+            "latency_ms": 100.0,
+            "usage": {"input_tokens": 50, "output_tokens": 10, "cost_usd": 0.0002, "model": "gpt-4o"},
+        }
+        response = client.post("/chat", json={"question": "What is AI?"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["usage"]["output_tokens"] == 10
+        assert data["usage"]["cost_usd"] == 0.0002
+
+
+def test_chat_stream_endpoint_emits_token_events(client):
+    import json as _json
+
+    async def fake_stream(question, top_k=None):
+        yield {"event": "sources", "sources": []}
+        yield {"event": "token", "token": "Hi"}
+        yield {"event": "done", "answer": "Hi", "usage": {}}
+
+    with patch("app.api.routes_chat.stream_query", fake_stream):
+        response = client.post("/chat/stream", json={"question": "hi"})
+        assert response.status_code == 200
+        lines = [ln for ln in response.text.strip().split("\n") if ln]
+        events = [_json.loads(ln) for ln in lines]
+        assert [e["event"] for e in events] == ["sources", "token", "done"]
+        assert events[-1]["answer"] == "Hi"
+
+
 def test_chat_missing_question(client):
     response = client.post("/chat", json={})
     assert response.status_code == 422

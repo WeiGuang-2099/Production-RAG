@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Graph
     GRAPH_EXTRACTOR: str = "llm"
 
+    # Generation
+    PROMPT_MODE: str = "grounded"
+
     # Qdrant
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str | None = None
@@ -40,6 +43,7 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 64
 
     # Retrieval
+    RETRIEVAL_MODE: str = "hybrid"
     TOP_K: int = 5
     RERANK_TOP_K: int = 3
 
@@ -79,6 +83,20 @@ class Settings(BaseSettings):
     def validate_graph_extractor(cls, v: str) -> str:
         if v not in ("none", "llm", "nlp"):
             raise ValueError(f"GRAPH_EXTRACTOR must be 'none', 'llm', or 'nlp', got '{v}'")
+        return v
+
+    @field_validator("PROMPT_MODE")
+    @classmethod
+    def validate_prompt_mode(cls, v: str) -> str:
+        if v not in ("basic", "grounded"):
+            raise ValueError(f"PROMPT_MODE must be 'basic' or 'grounded', got '{v}'")
+        return v
+
+    @field_validator("RETRIEVAL_MODE")
+    @classmethod
+    def validate_retrieval_mode(cls, v: str) -> str:
+        if v not in ("dense", "hybrid"):
+            raise ValueError(f"RETRIEVAL_MODE must be 'dense' or 'hybrid', got '{v}'")
         return v
 
     @model_validator(mode="after")

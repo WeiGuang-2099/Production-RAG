@@ -1,8 +1,10 @@
 """Ingest and query pipelines with error handling, logging, and incremental ingestion."""
+import asyncio
 import hashlib
 import json
 import time
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +13,7 @@ from langchain_core.documents import Document
 
 from app.config import get_settings
 from app.core.factories import get_llm, get_embedder, get_reranker
+from app.core.prompts import select_prompt, format_context
 from app.ingestion.loaders import load_documents
 from app.ingestion.chunkers import chunk_documents
 from app.retrieval.vector_store import VectorStore
@@ -21,17 +24,9 @@ from app.graph.builder import GraphBuilder
 from app.graph.store import GraphStore
 from app.reranker.reranker import RerankerService
 from app.observability.tracing import trace_retrieval
+from app.observability.cost import usage_for
 
 logger = logging.getLogger(__name__)
-
-RAG_PROMPT = """Answer the question based on the following context.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
 
 # ── Ingestion tracking helpers ──────────────────────────
 
@@ -129,23 +124,27 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
 
 # ── Query Pipeline ───────────────────────────────────────
 
-def query_pipeline(question: str, top_k: int | None = None) -> dict:
-    settings = get_settings()
-    if top_k is None:
-        top_k = settings.TOP_K
-    start = time.time()
-    logger.info("query_start: question=%s", question[:100])
+def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
+    """Retrieve (dense/hybrid + optional graph) and rerank to the final docs.
 
-    # Hybrid retrieval
+    Shared by query_pipeline (generation) and retrieve_sources (eval/UI), so
+    both measure the exact same retrieval path.
+    """
+    # RETRIEVAL_MODE=dense is the ablation baseline (vector only); hybrid
+    # additionally fuses BM25 keyword hits via RRF.
     hybrid_results: list[tuple[Document, float]] = []
     try:
         vs = VectorStore()
-        bm25 = BM25Store(data_dir=settings.DATA_DIR)
-        retriever = HybridRetriever(vector_store=vs, bm25_store=bm25)
-        hybrid_results = retriever.retrieve(question, top_k=top_k)
-        logger.info("hybrid_retrieval_complete: hits=%d", len(hybrid_results))
+        if settings.RETRIEVAL_MODE == "dense":
+            hybrid_results = vs.search(question, top_k=top_k)
+            logger.info("dense_retrieval_complete: hits=%d", len(hybrid_results))
+        else:
+            bm25 = BM25Store(data_dir=settings.DATA_DIR)
+            retriever = HybridRetriever(vector_store=vs, bm25_store=bm25)
+            hybrid_results = retriever.retrieve(question, top_k=top_k)
+            logger.info("hybrid_retrieval_complete: hits=%d", len(hybrid_results))
     except Exception as exc:
-        logger.error("hybrid_retrieval_failed: %s", exc)
+        logger.error("retrieval_failed: %s", exc)
         # Continue with empty results
 
     # Graph retrieval (optional)
@@ -172,6 +171,49 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
         logger.warning("rerank_failed: %s — using unranked results", exc)
         reranked = all_docs[: settings.RERANK_TOP_K]
 
+    return reranked
+
+
+def _docs_to_sources(docs: list[Document]) -> list[dict]:
+    """Render reranked docs as source dicts, stamping the 1-based citation
+    number so callers can resolve the [n] markers in a grounded answer."""
+    sources = []
+    for i, d in enumerate(docs, 1):
+        md = dict(d.metadata)
+        md["citation"] = i
+        sources.append({"content": d.page_content, "metadata": md})
+    return sources
+
+
+def retrieve_sources(question: str, top_k: int | None = None) -> list[dict]:
+    """Retrieval-only entry point (no generation): cited sources for a query.
+
+    Used by the retrieval-only evaluation and the demo UI; avoids paying for
+    a generation call when only the retrieved context is needed.
+    """
+    settings = get_settings()
+    if top_k is None:
+        top_k = settings.TOP_K
+    start = time.time()
+    reranked = _retrieve_and_rerank(question, top_k, settings)
+    retrieval_ms = (time.time() - start) * 1000
+    trace_data = [
+        {"content": d.page_content[:100], "score": d.metadata.get("relevance_score", 0)}
+        for d in reranked
+    ]
+    trace_retrieval(question, trace_data, retrieval_ms)
+    return _docs_to_sources(reranked)
+
+
+def query_pipeline(question: str, top_k: int | None = None) -> dict:
+    settings = get_settings()
+    if top_k is None:
+        top_k = settings.TOP_K
+    start = time.time()
+    logger.info("query_start: question=%s", question[:100])
+
+    reranked = _retrieve_and_rerank(question, top_k, settings)
+
     retrieval_ms = (time.time() - start) * 1000
     trace_data = [
         {"content": d.page_content[:100], "score": d.metadata.get("relevance_score", 0)}
@@ -179,9 +221,10 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
     ]
     trace_retrieval(question, trace_data, retrieval_ms)
 
-    # LLM generation
-    context = "\n\n".join(d.page_content for d in reranked)
-    prompt = ChatPromptTemplate.from_template(RAG_PROMPT)
+    # LLM generation. Context is numbered so the grounded prompt's [n]
+    # citations map back to the sources returned below.
+    context = format_context(reranked)
+    prompt = ChatPromptTemplate.from_template(select_prompt(settings.PROMPT_MODE))
     try:
         llm = get_llm()
         chain = prompt | llm
@@ -195,8 +238,55 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
     total_ms = (time.time() - start) * 1000
     logger.info("query_complete: latency_ms=%.1f", total_ms)
 
+    prompt_text = select_prompt(settings.PROMPT_MODE).format(context=context, question=question)
+    usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
+    logger.info(
+        "query_usage: input_tokens=%d output_tokens=%d cost_usd=%.6f",
+        usage["input_tokens"], usage["output_tokens"], usage["cost_usd"],
+    )
+
     return {
         "answer": answer,
-        "sources": [{"content": d.page_content, "metadata": d.metadata} for d in reranked],
+        "sources": _docs_to_sources(reranked),
         "latency_ms": total_ms,
+        "usage": usage,
     }
+
+
+async def stream_query(question: str, top_k: int | None = None) -> AsyncIterator[dict]:
+    """Stream a grounded answer token-by-token.
+
+    Retrieval is synchronous (and not streamable), so it runs in a thread and
+    is emitted as a single ``sources`` event; generation is then streamed from
+    the LLM one token at a time, finishing with a ``done`` event that carries
+    the assembled answer and token/cost usage.
+    """
+    settings = get_settings()
+    if top_k is None:
+        top_k = settings.TOP_K
+    start = time.time()
+
+    reranked = await asyncio.to_thread(_retrieve_and_rerank, question, top_k, settings)
+    retrieval_ms = (time.time() - start) * 1000
+    trace_data = [
+        {"content": d.page_content[:100], "score": d.metadata.get("relevance_score", 0)}
+        for d in reranked
+    ]
+    trace_retrieval(question, trace_data, retrieval_ms)
+    yield {"event": "sources", "sources": _docs_to_sources(reranked), "latency_ms": retrieval_ms}
+
+    context = format_context(reranked)
+    prompt_text = select_prompt(settings.PROMPT_MODE).format(context=context, question=question)
+    llm = get_llm()
+    parts: list[str] = []
+    async for chunk in llm.astream(prompt_text):
+        token = getattr(chunk, "content", "") or ""
+        if token:
+            parts.append(token)
+            yield {"event": "token", "token": token}
+
+    answer = "".join(parts)
+    usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
+    total_ms = (time.time() - start) * 1000
+    logger.info("stream_complete: latency_ms=%.1f cost_usd=%.6f", total_ms, usage["cost_usd"])
+    yield {"event": "done", "answer": answer, "usage": usage, "latency_ms": total_ms}

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.core.pipeline import query_pipeline
+from app.core.pipeline import query_pipeline, stream_query
 from app.api.deps import verify_api_key, limiter
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class ChatResponse(BaseModel):
     sources: list[SourceItem]
     latency_ms: float
     total_sources: int
+    usage: dict = {}
 
 
 @router.post("", response_model=ChatResponse)
@@ -41,29 +42,24 @@ async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)
         sources=sources,
         latency_ms=result["latency_ms"],
         total_sources=len(sources),
+        usage=result.get("usage", {}),
     )
 
 
 @router.post("/stream")
 @limiter.limit("30/minute")
 async def chat_stream(request: Request, body: ChatRequest, _key=Depends(verify_api_key)):
+    """Token-by-token streaming as newline-delimited JSON.
+
+    Event sequence: one ``sources`` event, then a ``token`` event per
+    generated token, then a terminal ``done`` event with the assembled
+    answer and token/cost usage. Errors surface as an ``error`` event.
+    """
     async def event_generator():
         try:
-            result = await asyncio.to_thread(query_pipeline, body.question, body.top_k)
-            # Emit sources first
-            yield json.dumps({
-                "event": "retrieval_complete",
-                "sources": result.get("sources", []),
-                "latency_ms": result["latency_ms"],
-            }) + "\n"
-            # Emit answer
-            yield json.dumps({
-                "event": "answer_complete",
-                "answer": result["answer"],
-            }) + "\n"
-            # Done
-            yield json.dumps({"event": "complete"}) + "\n"
-        except Exception as exc:
+            async for event in stream_query(body.question, body.top_k):
+                yield json.dumps(event) + "\n"
+        except Exception as exc:  # noqa: BLE001
             logger.error("Streaming chat error: %s", exc)
             yield json.dumps({"event": "error", "detail": str(exc)}) + "\n"
 

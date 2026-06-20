@@ -70,3 +70,37 @@ def test_reranker_none_no_cohere_key():
         COHERE_API_KEY="",
     )
     assert settings.RERANKER_PROVIDER == "none"
+
+
+def test_prompt_mode_default_is_grounded():
+    settings = Settings(
+        LLM_API_KEY="test", EMBEDDING_API_KEY="test", COHERE_API_KEY="test"
+    )
+    assert settings.PROMPT_MODE == "grounded"
+
+
+def test_invalid_prompt_mode():
+    with pytest.raises(ValueError, match="PROMPT_MODE must be"):
+        Settings(
+            PROMPT_MODE="creative",
+            LLM_API_KEY="test",
+            EMBEDDING_API_KEY="test",
+            COHERE_API_KEY="test",
+        )
+
+
+def test_retrieval_mode_default_is_hybrid():
+    settings = Settings(
+        LLM_API_KEY="test", EMBEDDING_API_KEY="test", COHERE_API_KEY="test"
+    )
+    assert settings.RETRIEVAL_MODE == "hybrid"
+
+
+def test_invalid_retrieval_mode():
+    with pytest.raises(ValueError, match="RETRIEVAL_MODE must be"):
+        Settings(
+            RETRIEVAL_MODE="magic",
+            LLM_API_KEY="test",
+            EMBEDDING_API_KEY="test",
+            COHERE_API_KEY="test",
+        )
