@@ -121,3 +121,21 @@ def test_invalid_query_transform():
             EMBEDDING_API_KEY="test",
             COHERE_API_KEY="test",
         )
+
+
+def test_cache_defaults():
+    settings = Settings(
+        LLM_API_KEY="test", EMBEDDING_API_KEY="test", COHERE_API_KEY="test"
+    )
+    assert settings.CACHE_ENABLED is False
+    assert settings.CACHE_SIMILARITY_THRESHOLD == 0.95
+
+
+def test_invalid_cache_threshold():
+    with pytest.raises(ValueError, match="CACHE_SIMILARITY_THRESHOLD"):
+        Settings(
+            CACHE_SIMILARITY_THRESHOLD=1.5,
+            LLM_API_KEY="test",
+            EMBEDDING_API_KEY="test",
+            COHERE_API_KEY="test",
+        )

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     TOP_K: int = 5
     RERANK_TOP_K: int = 3
 
+    # Cache
+    CACHE_ENABLED: bool = False
+    CACHE_SIMILARITY_THRESHOLD: float = 0.95
+
     # Data
     DATA_DIR: str = "./data"
 
@@ -105,6 +109,13 @@ class Settings(BaseSettings):
     def validate_query_transform(cls, v: str) -> str:
         if v not in ("none", "multi_query", "hyde"):
             raise ValueError(f"QUERY_TRANSFORM must be 'none', 'multi_query', or 'hyde', got '{v}'")
+        return v
+
+    @field_validator("CACHE_SIMILARITY_THRESHOLD")
+    @classmethod
+    def validate_cache_threshold(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"CACHE_SIMILARITY_THRESHOLD must be in [0.0, 1.0], got {v}")
         return v
 
     @model_validator(mode="after")

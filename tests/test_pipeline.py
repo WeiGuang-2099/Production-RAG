@@ -161,6 +161,66 @@ def test_query_pipeline_respects_top_k_argument():
         mock_retriever.retrieve.assert_called_once_with("What is AI?", top_k=12)
 
 
+def test_query_pipeline_short_circuits_on_cache_hit():
+    """A cache hit must skip retrieval and generation entirely."""
+    fake_cache = MagicMock()
+    fake_cache.get.return_value = {
+        "answer": "CACHED", "sources": [], "latency_ms": 1.0, "usage": {}
+    }
+    with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
+         patch("app.core.pipeline.get_llm") as mock_llm_f, \
+         patch("app.core.pipeline._retrieve_and_rerank") as mock_rr, \
+         patch("app.core.pipeline.get_settings") as mock_s:
+
+        mock_s.return_value.TOP_K = 5
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("q")
+
+        assert result["answer"] == "CACHED"
+        assert result["cached"] is True
+        mock_llm_f.assert_not_called()
+        mock_rr.assert_not_called()
+
+
+def test_query_pipeline_stores_result_in_cache_on_miss():
+    fake_cache = MagicMock()
+    fake_cache.get.return_value = None
+
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = MagicMock(content="fresh answer")
+    mock_prompt = MagicMock()
+    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
+
+    with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
+         patch("app.core.pipeline.get_llm"), \
+         patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_s.return_value.RETRIEVAL_MODE = "hybrid"
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_cpt.from_template.return_value = mock_prompt
+
+        doc = Document(page_content="ctx", metadata={"source": "a.pdf"})
+        mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
+        mock_rs_cls.return_value.rerank.return_value = [doc]
+
+        from app.core.pipeline import query_pipeline
+        query_pipeline("q")
+
+        fake_cache.put.assert_called_once()
+
+
 def test_query_pipeline_passes_numbered_context_to_llm():
     """Grounded generation needs the context numbered so [n] citations resolve."""
     mock_chain = MagicMock()

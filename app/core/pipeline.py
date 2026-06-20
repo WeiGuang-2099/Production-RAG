@@ -14,6 +14,7 @@ from langchain_core.documents import Document
 from app.config import get_settings
 from app.core.factories import get_llm, get_embedder, get_reranker
 from app.core.prompts import select_prompt, format_context
+from app.core.cache import QueryCache
 from app.ingestion.loaders import load_documents
 from app.ingestion.chunkers import chunk_documents
 from app.retrieval.vector_store import VectorStore
@@ -232,12 +233,35 @@ def retrieve_sources(question: str, top_k: int | None = None) -> list[dict]:
     return _docs_to_sources(reranked)
 
 
+_query_cache: QueryCache | None = None
+
+
+def _get_query_cache(settings) -> QueryCache | None:
+    """Return the process-local query cache, or None when caching is off."""
+    global _query_cache
+    if getattr(settings, "CACHE_ENABLED", False) is not True:
+        return None
+    if _query_cache is None:
+        _query_cache = QueryCache(
+            embed_fn=lambda q: get_embedder().embed_query(q),
+            threshold=getattr(settings, "CACHE_SIMILARITY_THRESHOLD", 0.95),
+        )
+    return _query_cache
+
+
 def query_pipeline(question: str, top_k: int | None = None) -> dict:
     settings = get_settings()
     if top_k is None:
         top_k = settings.TOP_K
     start = time.time()
     logger.info("query_start: question=%s", question[:100])
+
+    cache = _get_query_cache(settings)
+    if cache is not None:
+        cached = cache.get(question)
+        if cached is not None:
+            logger.info("cache_hit: question=%s", question[:100])
+            return {**cached, "cached": True}
 
     reranked = _retrieve_and_rerank(question, top_k, settings)
 
@@ -272,12 +296,15 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
         usage["input_tokens"], usage["output_tokens"], usage["cost_usd"],
     )
 
-    return {
+    result = {
         "answer": answer,
         "sources": _docs_to_sources(reranked),
         "latency_ms": total_ms,
         "usage": usage,
     }
+    if cache is not None:
+        cache.put(question, result)
+    return result
 
 
 async def stream_query(question: str, top_k: int | None = None) -> AsyncIterator[dict]:
