@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # Retrieval
     RETRIEVAL_MODE: str = "hybrid"
+    QUERY_TRANSFORM: str = "none"
     TOP_K: int = 5
     RERANK_TOP_K: int = 3
 
@@ -97,6 +98,13 @@ class Settings(BaseSettings):
     def validate_retrieval_mode(cls, v: str) -> str:
         if v not in ("dense", "hybrid"):
             raise ValueError(f"RETRIEVAL_MODE must be 'dense' or 'hybrid', got '{v}'")
+        return v
+
+    @field_validator("QUERY_TRANSFORM")
+    @classmethod
+    def validate_query_transform(cls, v: str) -> str:
+        if v not in ("none", "multi_query", "hyde"):
+            raise ValueError(f"QUERY_TRANSFORM must be 'none', 'multi_query', or 'hyde', got '{v}'")
         return v
 
     @model_validator(mode="after")

@@ -301,6 +301,77 @@ def test_retrieve_sources_returns_citations_without_generation():
         mock_llm_f.assert_not_called()
 
 
+def test_retrieve_sources_multi_query_fuses_per_query_results():
+    """multi_query retrieves for the original + each paraphrase and fuses."""
+    with patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.get_llm") as mock_llm_f:
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_s.return_value.RETRIEVAL_MODE = "hybrid"
+        mock_s.return_value.QUERY_TRANSFORM = "multi_query"
+
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="alt one\nalt two")
+        mock_llm_f.return_value = mock_llm
+
+        doc_a = Document(page_content="A", metadata={"source": "a"})
+        doc_b = Document(page_content="B", metadata={"source": "b"})
+        doc_c = Document(page_content="C", metadata={"source": "c"})
+        mock_hr_cls.return_value.retrieve.side_effect = [
+            [(doc_a, 0.9)], [(doc_b, 0.8)], [(doc_c, 0.7)]
+        ]
+        mock_rs_cls.return_value.rerank.side_effect = lambda q, docs, top_k: docs[:top_k]
+
+        from app.core.pipeline import retrieve_sources
+        sources = retrieve_sources("orig")
+
+        assert mock_hr_cls.return_value.retrieve.call_count == 3  # orig + 2 paraphrases
+        contents = {s["content"] for s in sources}
+        assert {"A", "B", "C"} <= contents
+
+
+def test_retrieve_sources_hyde_searches_with_hypothetical_document():
+    with patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.get_llm") as mock_llm_f:
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_s.return_value.RETRIEVAL_MODE = "hybrid"
+        mock_s.return_value.QUERY_TRANSFORM = "hyde"
+
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="Hypothetical answer passage.")
+        mock_llm_f.return_value = mock_llm
+
+        doc_a = Document(page_content="A", metadata={"source": "a"})
+        mock_hr_cls.return_value.retrieve.return_value = [(doc_a, 0.9)]
+        mock_rs_cls.return_value.rerank.side_effect = lambda q, docs, top_k: docs[:top_k]
+
+        from app.core.pipeline import retrieve_sources
+        retrieve_sources("orig")
+
+        mock_hr_cls.return_value.retrieve.assert_called_once_with(
+            "Hypothetical answer passage.", top_k=5
+        )
+
+
 def test_query_pipeline_reports_token_usage_and_cost():
     mock_chain = MagicMock()
     mock_chain.invoke.return_value = MagicMock(content="Generated answer")

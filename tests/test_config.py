@@ -104,3 +104,20 @@ def test_invalid_retrieval_mode():
             EMBEDDING_API_KEY="test",
             COHERE_API_KEY="test",
         )
+
+
+def test_query_transform_default_is_none():
+    settings = Settings(
+        LLM_API_KEY="test", EMBEDDING_API_KEY="test", COHERE_API_KEY="test"
+    )
+    assert settings.QUERY_TRANSFORM == "none"
+
+
+def test_invalid_query_transform():
+    with pytest.raises(ValueError, match="QUERY_TRANSFORM must be"):
+        Settings(
+            QUERY_TRANSFORM="telepathy",
+            LLM_API_KEY="test",
+            EMBEDDING_API_KEY="test",
+            COHERE_API_KEY="test",
+        )

@@ -18,7 +18,7 @@ from app.ingestion.loaders import load_documents
 from app.ingestion.chunkers import chunk_documents
 from app.retrieval.vector_store import VectorStore
 from app.retrieval.bm25_store import BM25Store
-from app.retrieval.hybrid_retriever import HybridRetriever
+from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
 from app.retrieval.graph_retriever import GraphRetriever
 from app.graph.builder import GraphBuilder
 from app.graph.store import GraphStore
@@ -124,6 +124,20 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
 
 # ── Query Pipeline ───────────────────────────────────────
 
+def _queries_for(question: str, settings) -> list[str]:
+    """Expand the question per QUERY_TRANSFORM. Only calls the LLM when an
+    actual transform (multi_query / hyde) is configured."""
+    mode = getattr(settings, "QUERY_TRANSFORM", "none")
+    if mode not in ("multi_query", "hyde"):
+        return [question]
+    try:
+        from app.retrieval.query_transform import build_queries
+        return build_queries(question, mode, get_llm())
+    except Exception as exc:
+        logger.warning("query_transform_failed: %s — using original query", exc)
+        return [question]
+
+
 def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
     """Retrieve (dense/hybrid + optional graph) and rerank to the final docs.
 
@@ -131,18 +145,31 @@ def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
     both measure the exact same retrieval path.
     """
     # RETRIEVAL_MODE=dense is the ablation baseline (vector only); hybrid
-    # additionally fuses BM25 keyword hits via RRF.
+    # additionally fuses BM25 keyword hits via RRF. With QUERY_TRANSFORM,
+    # we retrieve for each expanded query and RRF-fuse across them too.
+    queries = _queries_for(question, settings)
     hybrid_results: list[tuple[Document, float]] = []
     try:
         vs = VectorStore()
-        if settings.RETRIEVAL_MODE == "dense":
-            hybrid_results = vs.search(question, top_k=top_k)
-            logger.info("dense_retrieval_complete: hits=%d", len(hybrid_results))
-        else:
+        retriever = None
+        if settings.RETRIEVAL_MODE != "dense":
             bm25 = BM25Store(data_dir=settings.DATA_DIR)
             retriever = HybridRetriever(vector_store=vs, bm25_store=bm25)
-            hybrid_results = retriever.retrieve(question, top_k=top_k)
-            logger.info("hybrid_retrieval_complete: hits=%d", len(hybrid_results))
+
+        result_lists: list[list[tuple[Document, float]]] = []
+        for q in queries:
+            if settings.RETRIEVAL_MODE == "dense":
+                result_lists.append(vs.search(q, top_k=top_k))
+            else:
+                result_lists.append(retriever.retrieve(q, top_k=top_k))
+
+        hybrid_results = (
+            result_lists[0] if len(result_lists) == 1 else rrf_fuse(result_lists)[:top_k]
+        )
+        logger.info(
+            "retrieval_complete: mode=%s queries=%d hits=%d",
+            settings.RETRIEVAL_MODE, len(queries), len(hybrid_results),
+        )
     except Exception as exc:
         logger.error("retrieval_failed: %s", exc)
         # Continue with empty results
