@@ -21,3 +21,19 @@ def test_chunk_preserves_metadata():
     assert len(chunks) == 1
     assert chunks[0].metadata["source"] == "a.txt"
     assert chunks[0].metadata["custom"] == "val"
+
+
+def test_chunks_are_token_sized_not_char_sized():
+    """CHUNK_SIZE is documented as tokens. A token-aware splitter fills close
+    to the 50-token budget; a char-based one (50 chars) caps every chunk near
+    ~12 tokens, so the max chunk size distinguishes the two."""
+    import tiktoken
+
+    enc = tiktoken.get_encoding("cl100k_base")
+    docs = [Document(page_content="word " * 300, metadata={"source": "t"})]
+    chunks = chunk_documents(docs, chunk_size=50, chunk_overlap=10)
+    token_counts = [len(enc.encode(c.page_content)) for c in chunks]
+
+    assert len(chunks) > 1
+    assert max(token_counts) > 40    # fails for char-based splitting
+    assert max(token_counts) <= 50   # never exceeds the token budget
