@@ -1,7 +1,6 @@
 import hashlib
 from unittest.mock import patch
 
-
 KEY = "secret-test-key"
 KEY_HASH = hashlib.sha256(KEY.encode()).hexdigest()
 

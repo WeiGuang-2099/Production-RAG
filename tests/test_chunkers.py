@@ -1,5 +1,6 @@
-from app.ingestion.chunkers import chunk_documents
 from langchain_core.documents import Document
+
+from app.ingestion.chunkers import chunk_documents
 
 
 def test_chunk_documents():

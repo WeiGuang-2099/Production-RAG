@@ -1,8 +1,9 @@
 import logging
 import pickle
 from pathlib import Path
-from rank_bm25 import BM25Okapi
+
 from langchain_core.documents import Document
+from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
 

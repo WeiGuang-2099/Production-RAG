@@ -14,7 +14,6 @@ from evaluation.metrics import (
     slug_from_source,
 )
 
-
 # ── slug_from_source ───────────────────────────────────
 
 def test_slug_from_posix_path():

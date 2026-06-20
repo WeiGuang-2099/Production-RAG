@@ -1,6 +1,6 @@
-import pytest
-from app.retrieval.bm25_store import BM25Store
 from langchain_core.documents import Document
+
+from app.retrieval.bm25_store import BM25Store
 
 
 def test_add_and_search(tmp_path):

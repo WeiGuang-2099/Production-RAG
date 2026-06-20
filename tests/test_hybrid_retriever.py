@@ -1,7 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
-from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
+
 from langchain_core.documents import Document
+
+from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
 
 
 def test_rrf_fuse_basic():

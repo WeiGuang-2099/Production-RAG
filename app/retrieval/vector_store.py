@@ -1,7 +1,7 @@
 import uuid
 
-from langchain_qdrant import QdrantVectorStore
 from langchain_core.documents import Document
+from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 

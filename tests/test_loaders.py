@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from app.ingestion.loaders import load_pdf, load_markdown, load_webpage, load_documents
+
+from app.ingestion.loaders import load_documents, load_markdown, load_pdf, load_webpage
 
 
 def test_load_markdown(tmp_path):

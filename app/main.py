@@ -10,8 +10,8 @@ from app.api.deps import limiter
 from app.api.routes_chat import router as chat_router
 from app.api.routes_ingest import router as ingest_router
 from app.config import get_settings
+from app.observability.logging import RequestIDMiddleware, setup_logging
 from app.observability.tracing import setup_tracing
-from app.observability.logging import setup_logging, RequestIDMiddleware
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,5 @@
-from langchain_core.documents import Document
 from langchain_cohere import CohereRerank
+from langchain_core.documents import Document
 
 
 class RerankerService:

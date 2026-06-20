@@ -1,5 +1,7 @@
 import re
+
 from langchain_core.documents import Document
+
 from app.graph.store import GraphStore
 
 

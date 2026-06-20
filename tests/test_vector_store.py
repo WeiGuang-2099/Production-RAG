@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from app.retrieval.vector_store import VectorStore
+
+import pytest
 from langchain_core.documents import Document
+
+from app.retrieval.vector_store import VectorStore
 
 
 @pytest.fixture

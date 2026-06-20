@@ -1,8 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
+
 import networkx as nx
+
 from app.retrieval.graph_retriever import GraphRetriever
-from langchain_core.documents import Document
 
 
 def _make_store_with_nodes(*nodes):

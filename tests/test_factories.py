@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from app.core.factories import get_llm, get_embedder, get_reranker, clear_caches
+
+import pytest
+
+from app.core.factories import clear_caches, get_embedder, get_llm, get_reranker
 
 
 @pytest.fixture(autouse=True)

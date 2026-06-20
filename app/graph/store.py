@@ -1,6 +1,7 @@
 import logging
 import pickle
 from pathlib import Path
+
 import networkx as nx
 
 logger = logging.getLogger(__name__)

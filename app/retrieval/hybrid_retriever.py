@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from langchain_core.documents import Document
 
 if TYPE_CHECKING:
-    from app.retrieval.vector_store import VectorStore
     from app.retrieval.bm25_store import BM25Store
+    from app.retrieval.vector_store import VectorStore
 
 
 def rrf_fuse(

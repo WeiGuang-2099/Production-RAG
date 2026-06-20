@@ -1,7 +1,9 @@
 import logging
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
 from langchain_anthropic import ChatAnthropic
 from langchain_cohere import CohereRerank
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)

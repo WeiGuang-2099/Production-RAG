@@ -6,9 +6,9 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
+from app.api.deps import limiter, verify_api_key
 from app.config import get_settings
 from app.core.pipeline import ingest_pipeline
-from app.api.deps import verify_api_key, limiter
 
 logger = logging.getLogger(__name__)
 

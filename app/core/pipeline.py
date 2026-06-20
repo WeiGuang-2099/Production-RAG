@@ -2,30 +2,30 @@
 import asyncio
 import hashlib
 import json
-import time
 import logging
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from pathlib import Path
 
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import get_settings
-from app.core.factories import get_llm, get_embedder, get_reranker
-from app.core.prompts import select_prompt, format_context
 from app.core.cache import QueryCache
-from app.ingestion.loaders import load_documents
-from app.ingestion.chunkers import chunk_documents
-from app.retrieval.vector_store import VectorStore
-from app.retrieval.bm25_store import BM25Store
-from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
-from app.retrieval.graph_retriever import GraphRetriever
+from app.core.factories import get_embedder, get_llm, get_reranker
+from app.core.prompts import format_context, select_prompt
 from app.graph.builder import GraphBuilder
 from app.graph.store import GraphStore
-from app.reranker.reranker import RerankerService
-from app.observability.tracing import trace_retrieval
+from app.ingestion.chunkers import chunk_documents
+from app.ingestion.loaders import load_documents
 from app.observability.cost import usage_for
+from app.observability.tracing import trace_retrieval
+from app.reranker.reranker import RerankerService
+from app.retrieval.bm25_store import BM25Store
+from app.retrieval.graph_retriever import GraphRetriever
+from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
+from app.retrieval.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 

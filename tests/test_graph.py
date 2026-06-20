@@ -1,9 +1,10 @@
-import pytest
 import sys
 from unittest.mock import MagicMock, patch
+
+from langchain_core.documents import Document
+
 from app.graph.builder import GraphBuilder
 from app.graph.store import GraphStore
-from langchain_core.documents import Document
 
 
 def test_llm_extractor():

@@ -1,5 +1,7 @@
 import os
+
 from langsmith import traceable
+
 from app.config import get_settings
 
 

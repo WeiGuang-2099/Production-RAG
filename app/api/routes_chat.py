@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.api.deps import limiter, verify_api_key
 from app.core.pipeline import query_pipeline, stream_query
-from app.api.deps import verify_api_key, limiter
 
 logger = logging.getLogger(__name__)
 

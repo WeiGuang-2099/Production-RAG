@@ -1,7 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
-from app.reranker.reranker import RerankerService
+
 from langchain_core.documents import Document
+
+from app.reranker.reranker import RerankerService
 
 
 def test_rerank_with_cohere():
