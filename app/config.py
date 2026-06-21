@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # Reranker
     RERANKER_PROVIDER: str = "cohere"
-    RERANKER_MODEL: str = "rerank-v3"
+    RERANKER_MODEL: str = "rerank-v3.5"
     COHERE_API_KEY: str = ""
 
     # Graph
