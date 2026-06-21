@@ -13,7 +13,7 @@ from app.agent.prompts import (
     ROUTER_PROMPT,
 )
 from app.config import get_settings
-from app.core.factories import get_llm
+from app.core.factories import complete
 from app.core.pipeline import _docs_to_sources, _retrieve_and_rerank
 from app.core.prompts import format_context, select_prompt
 from app.observability.cost import usage_for
@@ -21,13 +21,9 @@ from app.observability.cost import usage_for
 logger = logging.getLogger(__name__)
 
 
-def _invoke(llm, prompt: str) -> str:
-    return getattr(llm.invoke(prompt), "content", "") or ""
-
-
 def route_question(state: dict) -> dict:
     try:
-        out = _invoke(get_llm(), ROUTER_PROMPT.format(question=state["question"]))
+        out = complete(ROUTER_PROMPT.format(question=state["question"]), fast=True)
         return {"route": parse_route(out)}
     except Exception as exc:  # noqa: BLE001
         logger.warning("route_failed: %s", exc)
@@ -46,9 +42,9 @@ def grade_documents(state: dict) -> dict:
     if not docs:
         return {"relevant": False}
     try:
-        out = _invoke(
-            get_llm(),
+        out = complete(
             GRADER_PROMPT.format(question=state["question"], context=format_context(docs)),
+            fast=True,
         )
         return {"relevant": parse_grade(out)}
     except Exception as exc:  # noqa: BLE001
@@ -60,7 +56,7 @@ def rewrite_query(state: dict) -> dict:
     attempts = state.get("attempts", 0) + 1
     fallback = state.get("query") or state["question"]
     try:
-        out = _invoke(get_llm(), REWRITE_PROMPT.format(question=state["question"])).strip()
+        out = complete(REWRITE_PROMPT.format(question=state["question"]), fast=True).strip()
         return {"query": out or fallback, "attempts": attempts}
     except Exception as exc:  # noqa: BLE001
         logger.warning("rewrite_failed: %s", exc)
@@ -69,7 +65,7 @@ def rewrite_query(state: dict) -> dict:
 
 def _generate_with(prompt_text: str) -> tuple[str, dict]:
     settings = get_settings()
-    answer = _invoke(get_llm(), prompt_text)
+    answer = complete(prompt_text)
     usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
     return answer, usage
 
