@@ -26,6 +26,7 @@ with st.sidebar:
     api_key = st.text_input("API key (optional)", type="password")
     top_k = st.slider("top_k", min_value=1, max_value=20, value=5)
     stream = st.checkbox("Stream tokens", value=True)
+    agent_mode = st.checkbox("Agent mode (route + self-correct)", value=False)
     st.caption("Set API key only if the server has API_KEY_HASH configured.")
 
 
@@ -36,11 +37,11 @@ def _headers() -> dict:
     return headers
 
 
-def stream_events(question: str):
-    """Yield NDJSON events from POST /chat/stream."""
+def stream_events(question: str, path: str):
+    """Yield NDJSON events from a streaming endpoint (/chat/stream or /agent/stream)."""
     with httpx.stream(
         "POST",
-        f"{api_url}/chat/stream",
+        f"{api_url}{path}",
         json={"question": question, "top_k": top_k},
         headers=_headers(),
         timeout=120.0,
@@ -104,13 +105,16 @@ if question:
     with st.chat_message("assistant"):
         try:
             if stream:
+                path = "/agent/stream" if agent_mode else "/chat/stream"
                 placeholder = st.empty()
+                status = st.empty()
                 answer, sources, usage, latency = "", [], {}, None
-                for event in stream_events(question):
+                for event in stream_events(question, path):
                     kind = event.get("event")
-                    if kind == "sources":
+                    if kind == "step":
+                        status.caption(f"agent: {event.get('node')}")
+                    elif kind == "sources":
                         sources = event.get("sources", [])
-                        latency = event.get("latency_ms")
                     elif kind == "token":
                         answer += event.get("token", "")
                         placeholder.markdown(answer + "█")
@@ -120,6 +124,7 @@ if question:
                         latency = event.get("latency_ms", latency)
                     elif kind == "error":
                         st.error(event.get("detail", "stream error"))
+                status.empty()
                 placeholder.markdown(answer)
             else:
                 result = fetch_answer(question)
