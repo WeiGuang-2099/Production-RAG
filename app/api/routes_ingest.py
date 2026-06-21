@@ -21,24 +21,8 @@ class IngestRequest(BaseModel):
     @field_validator("source")
     @classmethod
     def validate_source(cls, v: str) -> str:
-        if v.startswith(("http://", "https://")):
-            return v
-        settings = get_settings()
-        data_dir = Path(settings.DATA_DIR).resolve()
-        file_path = Path(v).resolve()
-        # Security: must be within DATA_DIR (string prefix is bypassable, e.g. /data-evil)
-        if not file_path.is_relative_to(data_dir):
-            raise ValueError(f"File path must be within DATA_DIR ({data_dir})")
-        if not file_path.exists():
-            raise ValueError(f"File not found: {v}")
-        allowed = {".pdf", ".md", ".markdown"}
-        if file_path.suffix.lower() not in allowed:
-            raise ValueError(f"Unsupported file type: {file_path.suffix}")
-        max_mb = settings.MAX_FILE_SIZE_MB
-        size_mb = file_path.stat().st_size / (1024 * 1024)
-        if size_mb > max_mb:
-            raise ValueError(f"File too large: {size_mb:.1f}MB (max {max_mb}MB)")
-        return v
+        from app.ingestion.validation import validate_source as _validate
+        return _validate(v, get_settings())
 
 
 class IngestResponse(BaseModel):
