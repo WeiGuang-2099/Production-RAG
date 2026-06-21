@@ -103,3 +103,52 @@ def test_clear_caches():
             clear_caches()
             get_llm()
             assert mock_cls.call_count == 2  # Created twice after cache clear
+
+
+def test_complete_routes_to_fast_model_when_fast():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        mock_get.return_value.invoke.return_value = MagicMock(content="x")
+        from app.core.factories import complete
+        complete("p", fast=True)
+        mock_get.assert_called_with("gpt-4o-mini")
+
+
+def test_complete_uses_strong_model_by_default():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        mock_get.return_value.invoke.return_value = MagicMock(content="x")
+        from app.core.factories import complete
+        complete("p")
+        mock_get.assert_called_with("gpt-4o")
+
+
+def test_complete_falls_back_on_error():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        primary, fb = MagicMock(), MagicMock()
+        primary.invoke.side_effect = RuntimeError("boom")
+        fb.invoke.return_value = MagicMock(content="fallback answer")
+        mock_get.side_effect = lambda m: primary if m == "gpt-4o" else fb
+        from app.core.factories import complete
+        assert complete("p") == "fallback answer"
+
+
+def test_complete_reraises_without_fallback():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_FALLBACK_MODEL = ""
+        mock_get.return_value.invoke.side_effect = RuntimeError("boom")
+        from app.core.factories import complete
+        with pytest.raises(RuntimeError):
+            complete("p")

@@ -13,28 +13,50 @@ _embedder_cache: dict[tuple, object] = {}
 _reranker_cache: dict[tuple, object] = {}
 
 
-def get_llm():
+def get_llm(model: str | None = None):
     settings = get_settings()
-    key = (settings.LLM_PROVIDER, settings.LLM_MODEL)
+    model = model or settings.LLM_MODEL
+    key = (settings.LLM_PROVIDER, model)
     if key in _llm_cache:
         return _llm_cache[key]
     if settings.LLM_PROVIDER == "openai":
         instance = ChatOpenAI(
-            model=settings.LLM_MODEL,
+            model=model,
             api_key=settings.LLM_API_KEY or None,
             base_url=settings.LLM_BASE_URL,
+            timeout=settings.LLM_TIMEOUT,
         )
     elif settings.LLM_PROVIDER == "anthropic":
         instance = ChatAnthropic(
-            model=settings.LLM_MODEL,
+            model=model,
             api_key=settings.LLM_API_KEY or None,
             base_url=settings.LLM_BASE_URL,
+            timeout=settings.LLM_TIMEOUT,
         )
     else:
         raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")
     _llm_cache[key] = instance
-    logger.info("Created LLM client: provider=%s model=%s", settings.LLM_PROVIDER, settings.LLM_MODEL)
+    logger.info("Created LLM client: provider=%s model=%s", settings.LLM_PROVIDER, model)
     return instance
+
+
+def _content(resp) -> str:
+    return getattr(resp, "content", "") or ""
+
+
+def complete(prompt: str, *, fast: bool = False) -> str:
+    """Invoke the routed model (fast vs strong) and fall back to
+    LLM_FALLBACK_MODEL (same provider) on any error."""
+    settings = get_settings()
+    model = settings.LLM_MODEL_FAST if fast else settings.LLM_MODEL
+    try:
+        return _content(get_llm(model).invoke(prompt))
+    except Exception as exc:  # noqa: BLE001
+        fallback = settings.LLM_FALLBACK_MODEL
+        if not fallback or fallback == model:
+            raise
+        logger.warning("llm_fallback: model=%s failed (%s), retrying with %s", model, exc, fallback)
+        return _content(get_llm(fallback).invoke(prompt))
 
 
 def get_embedder():
