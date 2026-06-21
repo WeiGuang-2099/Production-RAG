@@ -139,3 +139,20 @@ def test_invalid_cache_threshold():
             EMBEDDING_API_KEY="test",
             COHERE_API_KEY="test",
         )
+
+
+def test_agent_max_rewrites_default():
+    settings = Settings(
+        LLM_API_KEY="test", EMBEDDING_API_KEY="test", COHERE_API_KEY="test"
+    )
+    assert settings.AGENT_MAX_REWRITES == 2
+
+
+def test_invalid_agent_max_rewrites():
+    with pytest.raises(ValueError, match="AGENT_MAX_REWRITES must be"):
+        Settings(
+            AGENT_MAX_REWRITES=-1,
+            LLM_API_KEY="test",
+            EMBEDDING_API_KEY="test",
+            COHERE_API_KEY="test",
+        )

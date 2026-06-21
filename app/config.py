@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     CACHE_ENABLED: bool = False
     CACHE_SIMILARITY_THRESHOLD: float = 0.95
 
+    # Agent
+    AGENT_MAX_REWRITES: int = 2
+
     # Data
     DATA_DIR: str = "./data"
 
@@ -116,6 +119,13 @@ class Settings(BaseSettings):
     def validate_cache_threshold(cls, v: float) -> float:
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"CACHE_SIMILARITY_THRESHOLD must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("AGENT_MAX_REWRITES")
+    @classmethod
+    def validate_agent_max_rewrites(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"AGENT_MAX_REWRITES must be >= 0, got {v}")
         return v
 
     @model_validator(mode="after")
