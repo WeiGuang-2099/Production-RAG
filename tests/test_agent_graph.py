@@ -93,3 +93,23 @@ def test_run_agent_returns_response_shape(monkeypatch):
     result = graph_mod.run_agent("q", top_k=5)
     assert set(result) >= {"answer", "sources", "latency_ms", "usage", "route", "attempts"}
     assert result["answer"] == "A"
+
+
+async def test_stream_agent_emits_steps_then_done(monkeypatch):
+    class FakeGraph:
+        async def astream(self, init, stream_mode="updates"):
+            yield {"route": {"route": "retrieve"}}
+            yield {"retrieve": {"documents": []}}
+            yield {"grade": {"relevant": True}}
+            yield {"generate": {"answer": "Final", "sources": [{"content": "d", "metadata": {}}], "usage": {"cost_usd": 0.0}}}
+
+    monkeypatch.setattr(graph_mod, "_get_compiled", lambda: FakeGraph())
+
+    events = [e async for e in graph_mod.stream_agent("q")]
+    kinds = [e["event"] for e in events]
+    assert kinds[0] == "step"
+    assert kinds.count("step") == 4
+    assert "sources" in kinds
+    assert kinds[-1] == "done"
+    assert events[-1]["answer"] == "Final"
+    assert [e["node"] for e in events if e["event"] == "step"] == ["route", "retrieve", "grade", "generate"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import AsyncIterator
 
 from langgraph.graph import END, StateGraph
 
@@ -71,4 +72,24 @@ def run_agent(question: str, top_k: int | None = None) -> dict:
         "usage": final.get("usage", {}),
         "route": final.get("route", ""),
         "attempts": final.get("attempts", 0),
+    }
+
+
+async def stream_agent(question: str, top_k: int | None = None) -> AsyncIterator[dict]:
+    settings = get_settings()
+    start = time.time()
+    init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K, "attempts": 0}
+    final: dict = {}
+    async for update in _get_compiled().astream(init, stream_mode="updates"):
+        for node_name, partial in update.items():
+            final.update(partial or {})
+            yield {"event": "step", "node": node_name}
+    yield {"event": "sources", "sources": final.get("sources", [])}
+    yield {
+        "event": "done",
+        "answer": final.get("answer", ""),
+        "usage": final.get("usage", {}),
+        "route": final.get("route", ""),
+        "attempts": final.get("attempts", 0),
+        "latency_ms": (time.time() - start) * 1000,
     }
