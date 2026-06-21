@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str | None = None
+    LLM_MODEL_FAST: str = "gpt-4o-mini"
+    LLM_FALLBACK_MODEL: str = "gpt-4o-mini"   # "" disables fallback
+    LLM_TIMEOUT: int = 30
 
     # Embedding
     EMBEDDING_PROVIDER: str = "openai"
@@ -70,6 +73,13 @@ class Settings(BaseSettings):
     def validate_llm_provider(cls, v: str) -> str:
         if v not in ("openai", "anthropic"):
             raise ValueError(f"LLM_PROVIDER must be 'openai' or 'anthropic', got '{v}'")
+        return v
+
+    @field_validator("LLM_TIMEOUT")
+    @classmethod
+    def validate_llm_timeout(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError(f"LLM_TIMEOUT must be > 0, got {v}")
         return v
 
     @field_validator("EMBEDDING_PROVIDER")
