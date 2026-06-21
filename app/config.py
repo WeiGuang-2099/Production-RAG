@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # Guardrails
     GUARDRAILS_ENABLED: bool = True
 
+    # MCP
+    MCP_ALLOW_INGEST: bool = True
+
     # Data
     DATA_DIR: str = "./data"
 
