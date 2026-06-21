@@ -35,6 +35,10 @@ run and improve:
   component fails.
 - **Provider-agnostic by construction.** Config-driven factories pick the LLM / embedder /
   reranker; there is no `if provider == ...` scattered through the business logic.
+- **Task-based model routing with fallback.** The agent's control-plane calls (route / grade /
+  rewrite) run on a cheap fast model while answer generation uses the strong model, and any LLM
+  call falls back to a same-provider model on error or timeout. Tuned via `LLM_MODEL_FAST` /
+  `LLM_FALLBACK_MODEL` / `LLM_TIMEOUT`.
 
 ## Architecture
 
@@ -142,6 +146,9 @@ All via `.env` (see `.env.example` for the full annotated list).
 | Variable | Default | Description |
 |---|---|---|
 | `LLM_PROVIDER` / `LLM_MODEL` | openai / gpt-4o | Chat model (openai / anthropic) |
+| `LLM_MODEL_FAST` | gpt-4o-mini | Cheap model for agent control-plane calls (route / grade / rewrite) |
+| `LLM_FALLBACK_MODEL` | gpt-4o-mini | Same-provider fallback on error/timeout (empty = disabled) |
+| `LLM_TIMEOUT` | 30 | LLM request timeout in seconds |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
 | `RERANKER_PROVIDER` | cohere | cohere / none |
 | `PROMPT_MODE` | grounded | grounded (cite + refuse) / basic |
