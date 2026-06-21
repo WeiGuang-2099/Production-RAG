@@ -33,6 +33,10 @@ run and improve:
   a semantic cache, bearer-token auth, rate limiting, structured JSON logging with request IDs,
   health/readiness probes, path-traversal-safe ingestion, and graceful degradation when a
   component fails.
+- **Guardrails at the API edge.** Inputs are screened for prompt injection (blocked with
+  `400`) and answers are scanned for PII (redacted) and toxicity (flagged) before they leave
+  `/chat` and `/agent` — heuristic detectors (regex / wordlist, no heavy framework), toggled by
+  `GUARDRAILS_ENABLED`. On the streaming endpoints the final answer is guarded, not each token.
 - **Provider-agnostic by construction.** Config-driven factories pick the LLM / embedder /
   reranker; there is no `if provider == ...` scattered through the business logic.
 - **Task-based model routing with fallback.** The agent's control-plane calls (route / grade /
@@ -159,6 +163,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 3 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
+| `GUARDRAILS_ENABLED` | true | edge guardrails: prompt-injection block + PII redaction + toxicity flag |
 | `LANGSMITH_TRACING` | false | enable LangSmith tracing |
 
 ## API
