@@ -30,6 +30,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "structlog>=24.0.0",
     "tiktoken>=0.7.0",
+    "mcp>=1.2.0",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +44,9 @@ dev = [
 ui = [
     "streamlit>=1.40.0",
 ]
+
+[project.scripts]
+rag-mcp = "app.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=75.0"]

@@ -33,6 +33,10 @@ run and improve:
   a semantic cache, bearer-token auth, rate limiting, structured JSON logging with request IDs,
   health/readiness probes, path-traversal-safe ingestion, and graceful degradation when a
   component fails.
+- **Guardrails at the API edge.** Inputs are screened for prompt injection (blocked with
+  `400`) and answers are scanned for PII (redacted) and toxicity (flagged) before they leave
+  `/chat` and `/agent` — heuristic detectors (regex / wordlist, no heavy framework), toggled by
+  `GUARDRAILS_ENABLED`. On the streaming endpoints the final answer is guarded, not each token.
 - **Provider-agnostic by construction.** Config-driven factories pick the LLM / embedder /
   reranker; there is no `if provider == ...` scattered through the business logic.
 - **Task-based model routing with fallback.** The agent's control-plane calls (route / grade /
@@ -159,6 +163,8 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 3 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
+| `GUARDRAILS_ENABLED` | true | edge guardrails: prompt-injection block + PII redaction + toxicity flag |
+| `MCP_ALLOW_INGEST` | true | expose the ingest (write) tool over the MCP server |
 | `LANGSMITH_TRACING` | false | enable LangSmith tracing |
 
 ## API
@@ -171,6 +177,45 @@ All via `.env` (see `.env.example` for the full annotated list).
 | GET | `/ingest/documents` | List ingested documents |
 | DELETE | `/ingest/documents/{id}` | Remove an ingestion record |
 | GET | `/health/live` · `/health/ready` | Liveness / readiness probes |
+
+## MCP server
+
+The same RAG engine is also exposed over the [Model Context Protocol](https://modelcontextprotocol.io)
+(stdio, FastMCP), so MCP clients like Claude Desktop can drive it directly — no HTTP. It reuses the
+pipeline, the corrective-RAG agent, and the guardrails in-process.
+
+What it exposes:
+
+- **Tools** — `search` (cited snippets, no generation), `ask` (corrective-RAG agent answer with
+  citations), `ingest` (add a file/URL; gated by `MCP_ALLOW_INGEST`), `list_documents`.
+- **Resource** — `rag://documents` (the ingested corpus as JSON).
+- **Prompt** — `grounded_research` (a template that drives the tools toward a cited answer).
+
+Run it (Qdrant must be running and a populated `.env` present, same config as the HTTP API):
+
+```bash
+pip install -e .          # exposes the `rag-mcp` console script
+rag-mcp                   # or: python -m app.mcp_server
+```
+
+Wire it into Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "production-rag": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["-m", "app.mcp_server"],
+      "cwd": "/path/to/production-rag"
+    }
+  }
+}
+```
+
+(`cwd` lets the server find `.env`; alternatively pass the keys via an `"env"` block. On Windows use
+the `\.venv\Scripts\python.exe` interpreter path.)
+
+<!-- ![mcp](docs/mcp-claude-desktop.png) -->
 
 ## Tech stack
 

@@ -472,3 +472,16 @@ async def test_stream_query_streams_tokens_then_done():
     assert kinds[-1] == "done"
     assert events[-1]["answer"] == "Hello world"
     assert events[-1]["usage"]["model"] == "gpt-4o"
+
+
+def test_list_documents_reads_tracking(tmp_path):
+    import json
+    from unittest.mock import patch
+    (tmp_path / "ingestions.json").write_text(json.dumps({
+        "h1": {"source": "a.pdf", "chunks": 3, "ingested_at": "2026-01-01"}
+    }))
+    with patch("app.core.pipeline.get_settings") as mock_s:
+        mock_s.return_value.DATA_DIR = str(tmp_path)
+        from app.core.pipeline import list_documents
+        docs = list_documents()
+        assert docs == [{"id": "h1", "source": "a.pdf", "chunks": 3, "ingested_at": "2026-01-01"}]

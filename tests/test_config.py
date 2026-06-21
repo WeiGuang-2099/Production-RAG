@@ -168,3 +168,13 @@ def test_llm_routing_defaults():
 def test_invalid_llm_timeout():
     with pytest.raises(ValueError, match="LLM_TIMEOUT must be"):
         Settings(LLM_TIMEOUT=0, LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+
+
+def test_guardrails_enabled_default():
+    s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+    assert s.GUARDRAILS_ENABLED is True
+
+
+def test_mcp_allow_ingest_default():
+    s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+    assert s.MCP_ALLOW_INGEST is True

@@ -48,6 +48,14 @@ def _save_tracking(data_dir: str, tracking: dict) -> None:
         json.dump(tracking, f, indent=2)
 
 
+def list_documents() -> list[dict]:
+    tracking = _load_tracking(get_settings().DATA_DIR)
+    return [
+        {"id": k, "source": v["source"], "chunks": v["chunks"], "ingested_at": v.get("ingested_at", "")}
+        for k, v in tracking.items()
+    ]
+
+
 # ── Ingest Pipeline ─────────────────────────────────────
 
 def ingest_pipeline(source: str, force: bool = False) -> dict:

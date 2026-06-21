@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     # Agent
     AGENT_MAX_REWRITES: int = 2
 
+    # Guardrails
+    GUARDRAILS_ENABLED: bool = True
+
+    # MCP
+    MCP_ALLOW_INGEST: bool = True
+
     # Data
     DATA_DIR: str = "./data"
 
