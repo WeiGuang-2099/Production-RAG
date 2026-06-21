@@ -156,3 +156,15 @@ def test_invalid_agent_max_rewrites():
             EMBEDDING_API_KEY="test",
             COHERE_API_KEY="test",
         )
+
+
+def test_llm_routing_defaults():
+    s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+    assert s.LLM_MODEL_FAST == "gpt-4o-mini"
+    assert s.LLM_FALLBACK_MODEL == "gpt-4o-mini"
+    assert s.LLM_TIMEOUT == 30
+
+
+def test_invalid_llm_timeout():
+    with pytest.raises(ValueError, match="LLM_TIMEOUT must be"):
+        Settings(LLM_TIMEOUT=0, LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
