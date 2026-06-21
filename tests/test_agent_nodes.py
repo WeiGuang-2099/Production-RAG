@@ -54,10 +54,9 @@ def test_rewrite_query_uses_fast_model_and_increments_attempts():
 
 def test_generate_node_uses_strong_model_with_cited_sources_and_usage():
     doc = Document(page_content="ctx", metadata={"source": "a.pdf"})
-    with patch("app.agent.nodes.complete", return_value="the answer") as mock_c, \
+    with patch("app.agent.nodes.complete_with_model", return_value=("the answer", "gpt-4o")) as mock_c, \
          patch("app.agent.nodes.get_settings") as mock_s:
         mock_s.return_value.PROMPT_MODE = "grounded"
-        mock_s.return_value.LLM_MODEL = "gpt-4o"
         out = nodes.generate_node({"question": "q", "documents": [doc]})
         assert out["answer"] == "the answer"
         assert out["sources"][0]["metadata"]["citation"] == 1
@@ -65,10 +64,18 @@ def test_generate_node_uses_strong_model_with_cited_sources_and_usage():
         assert mock_c.call_args.kwargs.get("fast") in (False, None)
 
 
-def test_answer_directly_has_no_sources():
-    with patch("app.agent.nodes.complete", return_value="general answer"), \
+def test_generate_node_attributes_usage_to_model_that_answered():
+    """On fallback the answer comes from the fallback model; usage must reflect it."""
+    doc = Document(page_content="ctx", metadata={"source": "a.pdf"})
+    with patch("app.agent.nodes.complete_with_model", return_value=("ans", "gpt-4o-mini")), \
          patch("app.agent.nodes.get_settings") as mock_s:
-        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        out = nodes.generate_node({"question": "q", "documents": [doc]})
+        assert out["usage"]["model"] == "gpt-4o-mini"
+
+
+def test_answer_directly_has_no_sources():
+    with patch("app.agent.nodes.complete_with_model", return_value=("general answer", "gpt-4o")):
         out = nodes.answer_directly({"question": "hi"})
         assert out["answer"] == "general answer"
         assert out["sources"] == []

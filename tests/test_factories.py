@@ -152,3 +152,40 @@ def test_complete_reraises_without_fallback():
         from app.core.factories import complete
         with pytest.raises(RuntimeError):
             complete("p")
+
+
+def test_complete_with_model_returns_strong_model_by_default():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        mock_get.return_value.invoke.return_value = MagicMock(content="x")
+        from app.core.factories import complete_with_model
+        assert complete_with_model("p") == ("x", "gpt-4o")
+
+
+def test_complete_with_model_returns_fast_model_when_fast():
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        mock_get.return_value.invoke.return_value = MagicMock(content="x")
+        from app.core.factories import complete_with_model
+        assert complete_with_model("p", fast=True) == ("x", "gpt-4o-mini")
+
+
+def test_complete_with_model_reports_fallback_model_on_error():
+    """The fix: cost must attribute to the model that actually answered."""
+    with patch("app.core.factories.get_llm") as mock_get, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_s.return_value.LLM_MODEL_FAST = "gpt-4o-mini"
+        mock_s.return_value.LLM_FALLBACK_MODEL = "gpt-4o-mini"
+        primary, fb = MagicMock(), MagicMock()
+        primary.invoke.side_effect = RuntimeError("boom")
+        fb.invoke.return_value = MagicMock(content="fallback answer")
+        mock_get.side_effect = lambda m: primary if m == "gpt-4o" else fb
+        from app.core.factories import complete_with_model
+        assert complete_with_model("p") == ("fallback answer", "gpt-4o-mini")

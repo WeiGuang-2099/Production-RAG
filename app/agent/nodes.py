@@ -13,7 +13,7 @@ from app.agent.prompts import (
     ROUTER_PROMPT,
 )
 from app.config import get_settings
-from app.core.factories import complete
+from app.core.factories import complete, complete_with_model
 from app.core.pipeline import _docs_to_sources, _retrieve_and_rerank
 from app.core.prompts import format_context, select_prompt
 from app.observability.cost import usage_for
@@ -64,9 +64,8 @@ def rewrite_query(state: dict) -> dict:
 
 
 def _generate_with(prompt_text: str) -> tuple[str, dict]:
-    settings = get_settings()
-    answer = complete(prompt_text)
-    usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
+    answer, model = complete_with_model(prompt_text)
+    usage = usage_for(prompt_text, answer, model)
     return answer, usage
 
 

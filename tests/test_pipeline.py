@@ -48,7 +48,7 @@ def test_ingest_pipeline(tmp_path):
 
 
 def test_query_pipeline():
-    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_embedder") as mock_emb, \
          patch("app.core.pipeline.get_reranker") as mock_rr_f, \
          patch("app.core.pipeline.VectorStore") as mock_vs_cls, \
@@ -87,7 +87,7 @@ def test_query_pipeline_returns_full_source_content():
     """Sources must carry full chunk content; truncation corrupts RAGAS evaluation."""
     long_content = "x" * 600
 
-    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -111,7 +111,7 @@ def test_query_pipeline_returns_full_source_content():
 
 
 def test_query_pipeline_respects_top_k_argument():
-    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -142,7 +142,7 @@ def test_query_pipeline_short_circuits_on_cache_hit():
         "answer": "CACHED", "sources": [], "latency_ms": 1.0, "usage": {}
     }
     with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
-         patch("app.core.pipeline.complete") as mock_complete, \
+         patch("app.core.pipeline.complete_with_model") as mock_complete, \
          patch("app.core.pipeline._retrieve_and_rerank") as mock_rr, \
          patch("app.core.pipeline.get_settings") as mock_s:
 
@@ -161,7 +161,7 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
     fake_cache.get.return_value = None
 
     with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
-         patch("app.core.pipeline.complete", return_value="fresh answer"), \
+         patch("app.core.pipeline.complete_with_model", return_value=("fresh answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -190,7 +190,7 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
 
 def test_query_pipeline_passes_numbered_context_to_llm():
     """Grounded generation needs the context numbered so [n] citations resolve."""
-    with patch("app.core.pipeline.complete", return_value="answer [1]") as mock_complete, \
+    with patch("app.core.pipeline.complete_with_model", return_value=("answer [1]", "gpt-4o")) as mock_complete, \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -218,7 +218,7 @@ def test_query_pipeline_passes_numbered_context_to_llm():
 
 
 def test_query_pipeline_stamps_citation_numbers_on_sources():
-    with patch("app.core.pipeline.complete", return_value="answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -248,7 +248,7 @@ def test_query_pipeline_stamps_citation_numbers_on_sources():
 def test_query_pipeline_dense_mode_uses_vector_only():
     """RETRIEVAL_MODE=dense is the ablation baseline: vector search only,
     no BM25 store and no RRF fusion."""
-    with patch("app.core.pipeline.complete", return_value="answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore") as mock_vs_cls, \
          patch("app.core.pipeline.BM25Store") as mock_bm25_cls, \
@@ -379,7 +379,7 @@ def test_retrieve_sources_hyde_searches_with_hypothetical_document():
 
 
 def test_query_pipeline_reports_token_usage_and_cost():
-    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
+    with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
@@ -407,6 +407,34 @@ def test_query_pipeline_reports_token_usage_and_cost():
         assert result["usage"]["model"] == "gpt-4o"
         assert result["usage"]["output_tokens"] > 0
         assert result["usage"]["cost_usd"] >= 0
+
+
+def test_query_pipeline_attributes_cost_to_model_that_answered():
+    """On fallback, usage must reflect the model that actually answered, not LLM_MODEL."""
+    with patch("app.core.pipeline.complete_with_model", return_value=("ans", "gpt-4o-mini")), \
+         patch("app.core.pipeline.get_reranker"), \
+         patch("app.core.pipeline.VectorStore"), \
+         patch("app.core.pipeline.BM25Store"), \
+         patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
+         patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"):
+
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.RERANK_TOP_K = 3
+        mock_s.return_value.DATA_DIR = "/tmp/test"
+        mock_s.return_value.GRAPH_EXTRACTOR = "none"
+        mock_s.return_value.RETRIEVAL_MODE = "hybrid"
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        mock_s.return_value.LLM_MODEL = "gpt-4o"  # strong configured, but mini answered
+
+        doc = Document(page_content="ctx", metadata={"source": "a.pdf"})
+        mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
+        mock_rs_cls.return_value.rerank.return_value = [doc]
+
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("q")
+        assert result["usage"]["model"] == "gpt-4o-mini"
 
 
 async def test_stream_query_streams_tokens_then_done():

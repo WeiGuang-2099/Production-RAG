@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 
 from app.config import get_settings
 from app.core.cache import QueryCache
-from app.core.factories import complete, get_embedder, get_llm, get_reranker
+from app.core.factories import complete_with_model, get_embedder, get_llm, get_reranker
 from app.core.prompts import format_context, select_prompt
 from app.graph.builder import GraphBuilder
 from app.graph.store import GraphStore
@@ -272,12 +272,13 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
     trace_retrieval(question, trace_data, retrieval_ms)
 
     # LLM generation. Context is numbered so the grounded prompt's [n]
-    # citations map back to the sources returned below. complete() routes to
-    # the strong model and falls back to a same-provider model on failure.
+    # citations map back to the sources returned below. complete_with_model()
+    # routes to the strong model and falls back to a same-provider model on
+    # failure, returning the model that answered so cost is attributed correctly.
     context = format_context(reranked)
     prompt_text = select_prompt(settings.PROMPT_MODE).format(context=context, question=question)
     try:
-        answer = complete(prompt_text)
+        answer, model = complete_with_model(prompt_text)
         logger.info("llm_complete: latency_ms=%.1f", (time.time() - start) * 1000 - retrieval_ms)
     except Exception as exc:
         logger.error("llm_generation_failed: %s", exc)
@@ -286,7 +287,7 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
     total_ms = (time.time() - start) * 1000
     logger.info("query_complete: latency_ms=%.1f", total_ms)
 
-    usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
+    usage = usage_for(prompt_text, answer, model)
     logger.info(
         "query_usage: input_tokens=%d output_tokens=%d cost_usd=%.6f",
         usage["input_tokens"], usage["output_tokens"], usage["cost_usd"],
