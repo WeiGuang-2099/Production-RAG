@@ -48,13 +48,7 @@ def test_ingest_pipeline(tmp_path):
 
 
 def test_query_pipeline():
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
-
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm") as mock_llm_f, \
+    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
          patch("app.core.pipeline.get_embedder") as mock_emb, \
          patch("app.core.pipeline.get_reranker") as mock_rr_f, \
          patch("app.core.pipeline.VectorStore") as mock_vs_cls, \
@@ -64,18 +58,12 @@ def test_query_pipeline():
          patch("app.core.pipeline.GraphStore") as mock_gs_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval") as mock_trace, \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval") as mock_trace:
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
         mock_s.return_value.DATA_DIR = "/tmp/test"
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
-
-        mock_llm = MagicMock()
-        mock_llm_f.return_value = mock_llm
-
-        mock_cpt.from_template.return_value = mock_prompt
 
         mock_rr = MagicMock()
         mock_rr_f.return_value = mock_rr
@@ -99,26 +87,19 @@ def test_query_pipeline_returns_full_source_content():
     """Sources must carry full chunk content; truncation corrupts RAGAS evaluation."""
     long_content = "x" * 600
 
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
         mock_s.return_value.DATA_DIR = "/tmp/test"
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content=long_content)
         mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
@@ -130,26 +111,19 @@ def test_query_pipeline_returns_full_source_content():
 
 
 def test_query_pipeline_respects_top_k_argument():
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
         mock_s.return_value.DATA_DIR = "/tmp/test"
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content="context doc")
         mock_retriever = mock_hr_cls.return_value
@@ -168,7 +142,7 @@ def test_query_pipeline_short_circuits_on_cache_hit():
         "answer": "CACHED", "sources": [], "latency_ms": 1.0, "usage": {}
     }
     with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
-         patch("app.core.pipeline.get_llm") as mock_llm_f, \
+         patch("app.core.pipeline.complete") as mock_complete, \
          patch("app.core.pipeline._retrieve_and_rerank") as mock_rr, \
          patch("app.core.pipeline.get_settings") as mock_s:
 
@@ -178,7 +152,7 @@ def test_query_pipeline_short_circuits_on_cache_hit():
 
         assert result["answer"] == "CACHED"
         assert result["cached"] is True
-        mock_llm_f.assert_not_called()
+        mock_complete.assert_not_called()
         mock_rr.assert_not_called()
 
 
@@ -186,21 +160,15 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
     fake_cache = MagicMock()
     fake_cache.get.return_value = None
 
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="fresh answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
     with patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
-         patch("app.core.pipeline.get_llm"), \
+         patch("app.core.pipeline.complete", return_value="fresh answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
@@ -209,7 +177,6 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
         mock_s.return_value.RETRIEVAL_MODE = "hybrid"
         mock_s.return_value.PROMPT_MODE = "grounded"
         mock_s.return_value.LLM_MODEL = "gpt-4o"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content="ctx", metadata={"source": "a.pdf"})
         mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
@@ -223,27 +190,20 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
 
 def test_query_pipeline_passes_numbered_context_to_llm():
     """Grounded generation needs the context numbered so [n] citations resolve."""
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="answer [1]")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="answer [1]") as mock_complete, \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
         mock_s.return_value.DATA_DIR = "/tmp/test"
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
         mock_s.return_value.PROMPT_MODE = "grounded"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content="Alpha content", metadata={"source": "a.pdf"})
         mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
@@ -252,33 +212,26 @@ def test_query_pipeline_passes_numbered_context_to_llm():
         from app.core.pipeline import query_pipeline
         query_pipeline("What is AI?")
 
-        passed = mock_chain.invoke.call_args[0][0]
-        assert "[1]" in passed["context"]
-        assert "Alpha content" in passed["context"]
+        passed = mock_complete.call_args[0][0]
+        assert "[1] (source: a.pdf)" in passed
+        assert "Alpha content" in passed
 
 
 def test_query_pipeline_stamps_citation_numbers_on_sources():
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
         mock_s.return_value.DATA_DIR = "/tmp/test"
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
         mock_s.return_value.PROMPT_MODE = "grounded"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc1 = Document(page_content="first", metadata={"source": "a.pdf"})
         doc2 = Document(page_content="second", metadata={"source": "b.pdf"})
@@ -295,20 +248,14 @@ def test_query_pipeline_stamps_citation_numbers_on_sources():
 def test_query_pipeline_dense_mode_uses_vector_only():
     """RETRIEVAL_MODE=dense is the ablation baseline: vector search only,
     no BM25 store and no RRF fusion."""
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore") as mock_vs_cls, \
          patch("app.core.pipeline.BM25Store") as mock_bm25_cls, \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
@@ -316,7 +263,6 @@ def test_query_pipeline_dense_mode_uses_vector_only():
         mock_s.return_value.GRAPH_EXTRACTOR = "none"
         mock_s.return_value.PROMPT_MODE = "grounded"
         mock_s.return_value.RETRIEVAL_MODE = "dense"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content="context doc", metadata={"source": "a.pdf"})
         mock_vs = mock_vs_cls.return_value
@@ -433,20 +379,14 @@ def test_retrieve_sources_hyde_searches_with_hypothetical_document():
 
 
 def test_query_pipeline_reports_token_usage_and_cost():
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = MagicMock(content="Generated answer")
-    mock_prompt = MagicMock()
-    mock_prompt.__or__ = MagicMock(return_value=mock_chain)
-
-    with patch("app.core.pipeline.get_llm"), \
+    with patch("app.core.pipeline.complete", return_value="Generated answer"), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.VectorStore"), \
          patch("app.core.pipeline.BM25Store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
-         patch("app.core.pipeline.trace_retrieval"), \
-         patch("app.core.pipeline.ChatPromptTemplate") as mock_cpt:
+         patch("app.core.pipeline.trace_retrieval"):
 
         mock_s.return_value.TOP_K = 5
         mock_s.return_value.RERANK_TOP_K = 3
@@ -455,7 +395,6 @@ def test_query_pipeline_reports_token_usage_and_cost():
         mock_s.return_value.RETRIEVAL_MODE = "hybrid"
         mock_s.return_value.PROMPT_MODE = "grounded"
         mock_s.return_value.LLM_MODEL = "gpt-4o"
-        mock_cpt.from_template.return_value = mock_prompt
 
         doc = Document(page_content="context doc", metadata={"source": "a.pdf"})
         mock_hr_cls.return_value.retrieve.return_value = [(doc, 0.9)]
