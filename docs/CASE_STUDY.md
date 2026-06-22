@@ -50,40 +50,48 @@ rate limit, which is itself Finding 3.)
 
 ## Finding 2 — generation: the eval inverted "grounded is more faithful," and the inversion is the lesson
 
-RAGAS, both prompts, full 48 questions (identical retrieval; gpt-4o answers,
+RAGAS, both prompts, full 48 questions (`RERANK_TOP_K=5`; gpt-4o answers,
 gpt-4o-mini judge):
 
 | prompt | faithfulness | answer_relevancy | context_recall | context_precision |
 | --- | --- | --- | --- | --- |
-| basic | 0.789 | 0.887 | 0.842 | 0.802 |
-| grounded | 0.532 | 0.501 | 0.837 | 0.825 |
+| basic | 0.878 | 0.838 | 0.896 | 0.794 |
+| grounded | 0.534 | 0.521 | 0.844 | 0.790 |
 
 I expected the grounded (cite-or-refuse) prompt to *win* on faithfulness; it scored
-markedly lower. Why is the whole point — and it is two different things, which I
-verified by reading the actual answers:
+markedly lower. Why is the whole point — and reading the actual answers split it
+into a metric artifact and a real bug I then fixed:
 
-1. **RAGAS punishes correct refusals.** On the 5 `unanswerable` questions the
-   grounded prompt correctly replies "I cannot answer this from the provided
-   documents," which RAGAS scores `answer_relevancy = 0.000`. The metric that
-   actually matters — does it refuse when it should? — says the opposite:
+1. **RAGAS punishes correct refusals (artifact).** On the 5 `unanswerable`
+   questions the grounded prompt correctly replies "I cannot answer this from the
+   provided documents," which RAGAS scores `answer_relevancy = 0.000`. The metric
+   that actually matters — does it refuse when it should? — says the opposite:
 
    | refusal rate on the 5 unanswerable | basic | grounded |
    | --- | --- | --- |
    | refuses (correct) | 0/5 | **5/5** |
 
    Basic answers all five questions that have no answer in the corpus; grounded
-   refuses all five. That is the behavior you want, and standard faithfulness /
-   answer_relevancy penalize it because they reward confident answering.
+   refuses all five. Standard faithfulness/answer_relevancy penalize that because
+   they reward confident answering.
 
-2. **Grounded over-refuses on hard *answerable* questions** (`multi_hop`
-   faithfulness 0.150). Error analysis, q016 — "Which architecture underlies both
-   BERT and GPT-3?" (answer: the Transformer): basic answers correctly; grounded
-   refuses, because the top-3 retrieved chunks don't co-locate the cross-paper
-   evidence. A real retrieval-depth limit, not a metric artifact — and it points at
-   a concrete fix (raise `RERANK_TOP_K` for multi-hop).
+2. **Grounded over-refused answerable multi-hop (real bug, now fixed).** At the
+   first run's `RERANK_TOP_K=3`, grounded refused 6/10 answerable multi-hop
+   questions — the top-3 context didn't co-locate the cross-paper evidence.
+   Measuring refusal rate against the final context size made the fix obvious:
+
+   | RERANK_TOP_K | 3 | 5 | 8 |
+   | --- | --- | --- | --- |
+   | multi_hop refused | 6/10 | 4/10 | 3/10 |
+
+   Raising the context 3 → 5 chunks (now the default) lifted grounded multi-hop
+   faithfulness **0.150 → 0.500**, with correct cited answers (q017 "BERT
+   bidirectional vs GPT left-only [2]"; q019 "BART [3]"). Honest limit: true
+   *synthesis* questions (q016) still refuse even at k=8 — strict grounding won't
+   assert a fact no single chunk states.
 
 `context_recall` / `context_precision` are nearly identical across prompts, which
-confirms retrieval was the same and the whole gap is generation behavior.
+confirms retrieval was the same and the gap is generation behavior.
 
 The takeaway is something you only learn by running the eval and reading the
 outputs: **standard RAGAS faithfulness/answer_relevancy are the wrong yardstick for
@@ -128,12 +136,14 @@ surfaced three bugs that 215 *mocked* unit tests never could:
 
 ## Honest limitations / what is next
 
-- **Data-driven next steps this eval surfaced:** (1) grounded over-refuses on
-  multi-hop because the top-3 context is too shallow — raise `RERANK_TOP_K` or add
-  multi-hop-aware retrieval; (2) add refusal-segmented eval metrics (refusal
-  accuracy on unanswerable, answer accuracy on answerable), since RAGAS
-  faithfulness/relevancy mislead on a cite-or-refuse system; (3) move graph
-  extraction to gpt-4o-mini + bounded concurrency (~15x cheaper, ~10x faster).
+- **Already fixed from this eval's findings:** raised `RERANK_TOP_K` 3 → 5 (now the
+  default), which cut grounded's multi-hop over-refusal 6/10 → 4/10 and lifted
+  multi-hop faithfulness 0.150 → 0.500.
+- **Surfaced, still open:** add refusal-segmented eval metrics (refusal accuracy on
+  unanswerable, answer accuracy on answerable), since RAGAS faithfulness/relevancy
+  mislead on a cite-or-refuse system; multi-hop-aware retrieval for the true-
+  synthesis questions that still refuse even at k=8; and move graph extraction to
+  gpt-4o-mini + bounded concurrency (~15x cheaper, ~10x faster).
 - **Known architectural limits, called out not hidden:** GraphRAG is intentionally
   lightweight (LLM/NER triples + lexical matching) and did not pay off at this
   scale; the semantic cache is process-local; BM25 rebuilds per ingest.

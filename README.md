@@ -188,7 +188,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
-| `TOP_K` / `RERANK_TOP_K` | 5 / 3 | retrieval depth / final context size |
+| `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
 | `GUARDRAILS_ENABLED` | true | edge guardrails: prompt-injection block + PII redaction + toxicity flag |
 | `MCP_ALLOW_INGEST` | true | expose the ingest (write) tool over the MCP server |

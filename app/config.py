@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     RETRIEVAL_MODE: str = "hybrid"
     QUERY_TRANSFORM: str = "none"
     TOP_K: int = 5
-    RERANK_TOP_K: int = 3
+    RERANK_TOP_K: int = 5
 
     # Cache
     CACHE_ENABLED: bool = False
