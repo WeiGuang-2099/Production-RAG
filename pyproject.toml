@@ -41,10 +41,6 @@ dev = [
     "httpx>=0.28.0",
     "ruff>=0.8.0",
 ]
-ui = [
-    "streamlit>=1.40.0",
-]
-
 [project.scripts]
 rag-mcp = "app.mcp_server:main"
 

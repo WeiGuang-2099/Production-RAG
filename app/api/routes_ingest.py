@@ -1,14 +1,17 @@
 import asyncio
 import json
 import logging
+import os
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, field_validator
 
 from app.api.deps import limiter, verify_api_key
 from app.config import get_settings
 from app.core.pipeline import ingest_pipeline
+from app.ingestion.validation import ALLOWED_SUFFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,31 @@ class IngestResponse(BaseModel):
 @limiter.limit("10/minute")
 async def ingest(request: Request, body: IngestRequest, _key=Depends(verify_api_key)):
     result = await asyncio.to_thread(ingest_pipeline, body.source)
+    return IngestResponse(**result)
+
+
+@router.post("/upload", response_model=IngestResponse)
+@limiter.limit("10/minute")
+async def upload(request: Request, file: UploadFile = File(...), _key=Depends(verify_api_key)):
+    settings = get_settings()
+    name = os.path.basename(file.filename or "")
+    suffix = Path(name).suffix.lower()
+    if suffix not in ALLOWED_SUFFIXES:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix or '(none)'}")
+
+    contents = await file.read()
+    size_mb = len(contents) / (1024 * 1024)
+    if size_mb > settings.MAX_FILE_SIZE_MB:
+        raise HTTPException(status_code=413, detail=f"File too large: {size_mb:.1f}MB (max {settings.MAX_FILE_SIZE_MB}MB)")
+
+    data_dir = Path(settings.DATA_DIR)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    dest = data_dir / name
+    if dest.exists():
+        dest = data_dir / f"{Path(name).stem}-{uuid.uuid4().hex[:8]}{suffix}"
+    dest.write_bytes(contents)
+
+    result = await asyncio.to_thread(ingest_pipeline, str(dest))
     return IngestResponse(**result)
 
 

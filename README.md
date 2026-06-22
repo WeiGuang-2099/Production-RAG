@@ -104,18 +104,27 @@ curl -N -X POST http://localhost:8000/chat/stream \
 
 ## Demo UI
 
-A Streamlit chat UI with live token streaming, citation display, and a token/cost readout:
+A React single-page app (Vite + TypeScript) in `frontend/` exposes the full system: chat with live
+token streaming and cited sources, agentic mode with a visible reasoning trace, document
+upload/listing/deletion, and an architecture overview.
 
 ```bash
-pip install -e ".[ui]"
-streamlit run ui/streamlit_app.py     # point it at the API in the sidebar
+cd frontend
+cp .env.example .env        # set VITE_API_URL to your backend (default http://localhost:8000)
+npm install
+npm run dev                 # http://localhost:5173
+
+npm run build               # static assets in frontend/dist for Vercel/Netlify
 ```
 
-<!-- Add a screenshot/GIF here for the recruiter skim: ![demo](docs/demo.png) -->
+The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the SPA origin
+(`http://localhost:5173` in dev). The public demo runs the backend with `API_KEY_HASH` unset.
+
+<!-- Add a screenshot/GIF here: ![demo](docs/demo.png) -->
 
 ## Evaluation
 
-The differentiator: **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
+Evaluation is **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
 and the dataset is 48 hand-written questions across 6 types (factual, multi-hop, comparative,
 numerical, unanswerable, long-tail). See [`evaluation/README.md`](evaluation/README.md). For the
 narrative — what the numbers and three real bugs found by running it taught me — see the
@@ -247,12 +256,11 @@ the `\.venv\Scripts\python.exe` interpreter path.)
 ## Tech stack
 
 Python 3.11+, FastAPI, LangChain 0.3+, Qdrant (vectors), rank_bm25 (keyword), NetworkX (graph),
-Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracing), Streamlit
-(demo UI), Docker Compose.
+Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracing), Docker Compose.
 
 ## Design notes & limitations
 
-Honest about the trade-offs, because an interviewer will ask:
+Deliberate trade-offs in the current implementation:
 
 - **GraphRAG is intentionally lightweight.** Triples come from an LLM/NER pass and entity
   matching is lexical (n-gram + substring). It helps multi-hop questions but is not a full
