@@ -104,11 +104,14 @@ curl -N -X POST http://localhost:8000/chat/stream \
 
 ## Demo UI
 
-A Streamlit chat UI with live token streaming, citation display, and a token/cost readout:
+A React single-page app (Vite + TypeScript) in `frontend/` exposes the full system:
+chat with live token streaming and cited sources, agentic mode with a visible
+reasoning trace, document upload/listing/deletion, and an architecture overview.
 
 ```bash
-pip install -e ".[ui]"
-streamlit run ui/streamlit_app.py     # point it at the API in the sidebar
+cd frontend
+npm install
+npm run dev        # http://localhost:5173, talks to the API at VITE_API_URL
 ```
 
 <!-- Add a screenshot/GIF here for the recruiter skim: ![demo](docs/demo.png) -->
@@ -247,8 +250,7 @@ the `\.venv\Scripts\python.exe` interpreter path.)
 ## Tech stack
 
 Python 3.11+, FastAPI, LangChain 0.3+, Qdrant (vectors), rank_bm25 (keyword), NetworkX (graph),
-Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracing), Streamlit
-(demo UI), Docker Compose.
+Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracing), Docker Compose.
 
 ## Design notes & limitations
 
