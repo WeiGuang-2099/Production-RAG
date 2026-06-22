@@ -120,11 +120,11 @@ npm run build               # static assets in frontend/dist for Vercel/Netlify
 The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the SPA origin
 (`http://localhost:5173` in dev). The public demo runs the backend with `API_KEY_HASH` unset.
 
-<!-- Add a screenshot/GIF here for the recruiter skim: ![demo](docs/demo.png) -->
+<!-- Add a screenshot/GIF here: ![demo](docs/demo.png) -->
 
 ## Evaluation
 
-The differentiator: **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
+Evaluation is **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
 and the dataset is 48 hand-written questions across 6 types (factual, multi-hop, comparative,
 numerical, unanswerable, long-tail). See [`evaluation/README.md`](evaluation/README.md). For the
 narrative — what the numbers and three real bugs found by running it taught me — see the
@@ -260,7 +260,7 @@ Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracin
 
 ## Design notes & limitations
 
-Honest about the trade-offs, because an interviewer will ask:
+Deliberate trade-offs in the current implementation:
 
 - **GraphRAG is intentionally lightweight.** Triples come from an LLM/NER pass and entity
   matching is lexical (n-gram + substring). It helps multi-hop questions but is not a full
