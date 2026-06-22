@@ -46,6 +46,7 @@ export function UploadZone({ onFile }: { onFile: (f: File) => void }) {
           ref={inputRef}
           data-testid="file-input"
           type="file"
+          accept={ALLOWED.join(",")}
           className="hidden"
           onChange={(e) => handle(e.target.files?.[0])}
         />
