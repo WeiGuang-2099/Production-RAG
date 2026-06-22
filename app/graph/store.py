@@ -18,11 +18,13 @@ class GraphStore:
 
     def add_triples(self, triples: list[dict]) -> None:
         for triple in triples:
-            self.graph.add_edge(
-                triple["head"],
-                triple["tail"],
-                relation=triple["relation"],
-            )
+            head, tail = triple.get("head"), triple.get("tail")
+            # A null/blank endpoint cannot be a node; skip rather than crash the
+            # whole batch (networkx raises "None cannot be a node").
+            if not head or not tail:
+                logger.warning("Skipping triple with empty head/tail: %s", triple)
+                continue
+            self.graph.add_edge(head, tail, relation=triple.get("relation", ""))
         if self.graph.number_of_nodes() > 100000:
             logger.warning("Knowledge graph has %d nodes; consider migrating to a graph database for scale", self.graph.number_of_nodes())
         self._save()

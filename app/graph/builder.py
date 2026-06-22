@@ -75,12 +75,21 @@ class GraphBuilder:
                 logger.warning("No JSON array found in LLM response: %s...", content[:200])
                 return []
             triples = json.loads(match.group())
+            if not isinstance(triples, list):
+                logger.warning("Expected a JSON array of triples, got %s", type(triples).__name__)
+                return []
             valid = []
             for triple in triples:
-                if all(k in triple for k in ("head", "relation", "tail")):
-                    valid.append(triple)
+                if not isinstance(triple, dict):
+                    logger.warning("Skipping non-object triple: %s", triple)
+                    continue
+                head, relation, tail = triple.get("head"), triple.get("relation"), triple.get("tail")
+                # Require non-empty head/relation/tail: a null or blank head/tail
+                # cannot be a graph node (networkx raises "None cannot be a node").
+                if head and relation and tail:
+                    valid.append({"head": str(head), "relation": str(relation), "tail": str(tail)})
                 else:
-                    logger.warning("Invalid triple structure (missing keys): %s", triple)
+                    logger.warning("Skipping triple with missing/empty fields: %s", triple)
             logger.info("Parsed %d triples from LLM response", len(valid))
             return valid
         except (json.JSONDecodeError, AttributeError) as exc:
