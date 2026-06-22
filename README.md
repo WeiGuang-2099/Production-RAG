@@ -104,15 +104,21 @@ curl -N -X POST http://localhost:8000/chat/stream \
 
 ## Demo UI
 
-A React single-page app (Vite + TypeScript) in `frontend/` exposes the full system:
-chat with live token streaming and cited sources, agentic mode with a visible
-reasoning trace, document upload/listing/deletion, and an architecture overview.
+A React single-page app (Vite + TypeScript) in `frontend/` exposes the full system: chat with live
+token streaming and cited sources, agentic mode with a visible reasoning trace, document
+upload/listing/deletion, and an architecture overview.
 
 ```bash
 cd frontend
+cp .env.example .env        # set VITE_API_URL to your backend (default http://localhost:8000)
 npm install
-npm run dev        # http://localhost:5173, talks to the API at VITE_API_URL
+npm run dev                 # http://localhost:5173
+
+npm run build               # static assets in frontend/dist for Vercel/Netlify
 ```
+
+The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the SPA origin
+(`http://localhost:5173` in dev). The public demo runs the backend with `API_KEY_HASH` unset.
 
 <!-- Add a screenshot/GIF here for the recruiter skim: ![demo](docs/demo.png) -->
 
