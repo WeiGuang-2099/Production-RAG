@@ -40,14 +40,17 @@ from evaluation.metrics import (  # noqa: E402
     retrieved_slugs,
 )
 
-# Each stage layers one component on top of the previous one. GRAPH_EXTRACTOR
-# for the last stage is left to the environment so it matches how the corpus
-# was actually ingested (graph retrieval only helps if a graph was built).
+# Each stage layers one component on top of the previous one. Because every
+# stage mutates os.environ, the +graph stage must EXPLICITLY re-enable graph
+# retrieval — prior stages set GRAPH_EXTRACTOR=none, so omitting it here would
+# silently make +graph identical to +rerank. "llm" matches how the eval corpus
+# is ingested; graph retrieval reads the prebuilt graph (no re-extraction, so
+# no LLM cost).
 STAGES: list[tuple[str, dict[str, str]]] = [
     ("baseline", {"RETRIEVAL_MODE": "dense", "RERANKER_PROVIDER": "none", "GRAPH_EXTRACTOR": "none"}),
     ("+bm25", {"RETRIEVAL_MODE": "hybrid", "RERANKER_PROVIDER": "none", "GRAPH_EXTRACTOR": "none"}),
     ("+rerank", {"RETRIEVAL_MODE": "hybrid", "RERANKER_PROVIDER": "cohere", "GRAPH_EXTRACTOR": "none"}),
-    ("+graph", {"RETRIEVAL_MODE": "hybrid", "RERANKER_PROVIDER": "cohere"}),
+    ("+graph", {"RETRIEVAL_MODE": "hybrid", "RERANKER_PROVIDER": "cohere", "GRAPH_EXTRACTOR": "llm"}),
 ]
 
 
@@ -80,6 +83,10 @@ def run_stage(label: str, overrides: dict, dataset: list[dict], k: int, top_k: i
 
     for key, val in overrides.items():
         os.environ[key] = val
+    # Measure recall@k over the full retrieval depth: keep all top_k candidates
+    # through rerank so the reranker can reorder but not truncate below k (the
+    # app default RERANK_TOP_K=3 would silently cap recall@5 at recall@3).
+    os.environ["RERANK_TOP_K"] = str(top_k)
     get_settings.cache_clear()
     clear_caches()
 

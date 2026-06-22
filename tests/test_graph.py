@@ -21,6 +21,38 @@ def test_llm_extractor():
     assert triples[0]["relation"] == "is_a"
 
 
+def test_llm_extractor_skips_null_and_empty_fields():
+    """LLMs sometimes emit triples with a null/blank head, relation, or tail.
+    Those must be filtered out, not passed through — a None head/tail crashes
+    the graph build with 'None cannot be a node'."""
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = MagicMock(
+        content=(
+            "["
+            '{"head": "Transformer", "relation": "uses", "tail": "attention"},'
+            '{"head": null, "relation": "uses", "tail": "attention"},'
+            '{"head": "X", "relation": "", "tail": "Y"},'
+            '{"head": "A", "relation": "r", "tail": null}'
+            "]"
+        )
+    )
+    builder = GraphBuilder(extractor_type="llm", llm=mock_llm)
+    triples = builder.extract([Document(page_content="Transformers use attention.")])
+    assert triples == [{"head": "Transformer", "relation": "uses", "tail": "attention"}]
+
+
+def test_graph_store_skips_incomplete_triples(tmp_path):
+    """add_triples must defend against null/missing endpoints rather than raise."""
+    store = GraphStore(data_dir=str(tmp_path))
+    store.add_triples([
+        {"head": "A", "relation": "r", "tail": "B"},
+        {"head": None, "relation": "r", "tail": "B"},
+        {"head": "C", "relation": "r"},
+    ])
+    assert store.graph.has_edge("A", "B")
+    assert store.graph.number_of_edges() == 1
+
+
 def test_nlp_extractor():
     mock_nlp = MagicMock()
     mock_ent1 = MagicMock(text="Python", label_="LANGUAGE")

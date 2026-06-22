@@ -6,14 +6,14 @@ tracking, a semantic cache, and a measurable evaluation harness — packaged for
 Docker deployment.
 
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-139%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-215%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 <!-- After pushing to GitHub, add the live CI badge:
 ![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg) -->
 
-> Built test-first (139 tests). Every retrieval/generation component is configurable and
+> Built test-first (215 tests). Every retrieval/generation component is configurable and
 > A/B-able through the evaluation harness, so design choices are backed by numbers rather than
 > vibes.
 
@@ -117,7 +117,9 @@ streamlit run ui/streamlit_app.py     # point it at the API in the sidebar
 
 The differentiator: **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
 and the dataset is 48 hand-written questions across 6 types (factual, multi-hop, comparative,
-numerical, unanswerable, long-tail). See [`evaluation/README.md`](evaluation/README.md).
+numerical, unanswerable, long-tail). See [`evaluation/README.md`](evaluation/README.md). For the
+narrative — what the numbers and three real bugs found by running it taught me — see the
+[**case study**](docs/CASE_STUDY.md).
 
 ```bash
 python evaluation/corpus/download_papers.py        # fetch the 6 papers
@@ -131,15 +133,40 @@ PROMPT_MODE=basic    python evaluation/run_eval.py --label basic
 PROMPT_MODE=grounded python evaluation/run_eval.py --label grounded
 ```
 
-Results land in [`evaluation/results/`](evaluation/results/README.md) (the table to fill in once
-you have run it against your keys).
+Real results (2026-06-22, 6-paper corpus, 479 chunks) — full breakdown and honest
+interpretation in [`evaluation/results/`](evaluation/results/README.md).
+
+**Retrieval ablation** — recall@5 over the reranked top-5; latency is retrieval-only
+(includes the per-query embedding call):
+
+| stage | recall@5 | mrr | hit@5 | p50_ms | p95_ms |
+| --- | --- | --- | --- | --- | --- |
+| baseline (dense)    | 0.934 | 0.979 | 1.000 | 1133 | 1783 |
+| +bm25 (hybrid RRF)  | **0.972** | 0.958 | 1.000 | 1039 | 1640 |
+| +rerank (Cohere)    | 0.962 | **0.979** | 1.000 | 1747 | 2067 |
+| +graph              | 0.903 | 0.927 | 0.958 | 1773 | 2185 |
+
+Honest read: on six topically distinct papers dense retrieval is already
+near-ceiling (baseline hit@5 = 1.000), so the ablation measures *which knob moves
+what*. **+BM25 maximizes recall@5** (0.934 → 0.972, no latency cost) but its RRF
+reshuffle nudges MRR to 0.958; **+rerank trades a hair of recall (0.962) to restore
+MRR to 0.979** — the single best chunk first — for ~0.7s of added p95; **+graph
+actively hurts here** (recall 0.903, hit@5 0.958), as cross-paper expansion adds
+noise on a small, well-separated corpus. So the hybrid+rerank defaults are
+justified and graph is honestly flagged as not paying off at this scale.
+
+End-to-end (RAGAS, grounded vs basic), the result is more interesting than the
+cliche: the grounded prompt **refuses 5/5 unanswerable questions** (basic 0/5),
+yet standard RAGAS faithfulness/relevancy *penalize* that correct refusal — a
+real measurement pitfall for cite-or-refuse systems that the
+[results page](evaluation/results/README.md) digs into.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 139 tests, all mocked (no services needed)
+pytest -q                                  # 215 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -161,7 +188,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
-| `TOP_K` / `RERANK_TOP_K` | 5 / 3 | retrieval depth / final context size |
+| `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
 | `GUARDRAILS_ENABLED` | true | edge guardrails: prompt-injection block + PII redaction + toxicity flag |
 | `MCP_ALLOW_INGEST` | true | expose the ingest (write) tool over the MCP server |

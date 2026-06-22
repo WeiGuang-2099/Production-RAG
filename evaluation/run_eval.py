@@ -14,6 +14,7 @@ import json
 import math
 import sys
 import time
+import warnings
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,13 +22,26 @@ from statistics import mean, median
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# We deliberately use ragas' Langchain LLM/embedding wrappers (see _load_ragas);
+# quiet their deprecation notice so it doesn't clutter the eval report.
+warnings.filterwarnings("ignore", message=r".*Langchain(LLM|Embeddings)Wrapper is deprecated.*")
+
 NON_METRIC_COLS = {"user_input", "response", "reference", "retrieved_contexts"}
 
 
 def _load_ragas() -> dict:
     """Lazy import of ragas so --help and arg parsing work without it installed."""
+    from evaluation._compat import ensure_ragas_importable
+    ensure_ragas_importable()
     from ragas import evaluate
     from ragas.dataset_schema import EvaluationDataset, SingleTurnSample
+
+    # NOTE: ragas 0.4.3's "modern" llm_factory + ragas.embeddings.OpenAIEmbeddings
+    # path silently drops answer_relevancy (returns NaN) for these metrics, so we
+    # deliberately use the (deprecated but correct) Langchain wrappers, which
+    # produce all four. The deprecation warning is quieted at module import.
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+    from ragas.llms import LangchainLLMWrapper
     from ragas.metrics import (
         answer_relevancy,
         context_precision,
@@ -38,8 +52,28 @@ def _load_ragas() -> dict:
         "evaluate": evaluate,
         "EvaluationDataset": EvaluationDataset,
         "SingleTurnSample": SingleTurnSample,
+        "LangchainLLMWrapper": LangchainLLMWrapper,
+        "LangchainEmbeddingsWrapper": LangchainEmbeddingsWrapper,
         "metrics": [faithfulness, answer_relevancy, context_recall, context_precision],
     }
+
+
+def _build_judge(ragas: dict):
+    """Build the RAGAS judge LLM + embeddings from the app's own factories.
+
+    Reusing the app config means the judge uses the same OpenAI keys/base URL
+    as the system under test (no separate OPENAI_API_KEY needed), and we judge
+    with the cheap fast model (LLM_MODEL_FAST) to keep eval cost down — the
+    metrics still measure the strong model's *answers*, only the grading is
+    done by the cheaper model.
+    """
+    from app.config import get_settings
+    from app.core.factories import get_embedder, get_llm
+
+    settings = get_settings()
+    judge_llm = ragas["LangchainLLMWrapper"](get_llm(settings.LLM_MODEL_FAST))
+    judge_emb = ragas["LangchainEmbeddingsWrapper"](get_embedder())
+    return judge_llm, judge_emb
 
 
 def _load_query_pipeline():
@@ -299,8 +333,11 @@ def main() -> int:
 
     print()
     print(f"Evaluating {len(samples)} successful samples with RAGAS ({len(ragas['metrics'])} metrics)...")
+    judge_llm, judge_emb = _build_judge(ragas)
     eval_dataset = ragas["EvaluationDataset"](samples=samples)
-    results = ragas["evaluate"](eval_dataset, metrics=ragas["metrics"])
+    results = ragas["evaluate"](
+        eval_dataset, metrics=ragas["metrics"], llm=judge_llm, embeddings=judge_emb
+    )
     df = results.to_pandas()
 
     agg = aggregate_scores(df, records)

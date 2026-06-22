@@ -16,7 +16,7 @@ def test_default_settings():
     assert settings.CHUNK_SIZE == 512
     assert settings.CHUNK_OVERLAP == 64
     assert settings.TOP_K == 5
-    assert settings.RERANK_TOP_K == 3
+    assert settings.RERANK_TOP_K == 5
     assert settings.COLLECTION_NAME == "rag_docs"
     assert settings.API_KEY_HASH == ""
     assert settings.CORS_ORIGINS == "*"
