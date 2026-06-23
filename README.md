@@ -13,9 +13,9 @@ Docker deployment.
 <!-- After pushing to GitHub, add the live CI badge:
 ![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg) -->
 
-> Built test-first (215 tests). Every retrieval/generation component is configurable and
-> A/B-able through the evaluation harness, so design choices are backed by numbers rather than
-> vibes.
+> **Built test-first, then measured against real keys.** The eval surfaced 3 bugs 215 mocked
+> tests couldn't, and showed standard RAGAS *penalizes correct refusals* — the wrong yardstick
+> for a cite-or-refuse system. → [Read the case study](docs/CASE_STUDY.md).
 
 ## Why this project is different
 
@@ -124,11 +124,14 @@ The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the S
 
 ## Evaluation
 
-Evaluation is **numbers, not adjectives.** The corpus is 6 classic ML papers from arXiv
-and the dataset is 48 hand-written questions across 6 types (factual, multi-hop, comparative,
-numerical, unanswerable, long-tail). See [`evaluation/README.md`](evaluation/README.md). For the
-narrative — what the numbers and three real bugs found by running it taught me — see the
-[**case study**](docs/CASE_STUDY.md).
+Evaluation is **numbers, not adjectives** — and the story behind the numbers is the
+[**case study**](docs/CASE_STUDY.md): what running the harness against real keys actually taught
+me, including three production bugs 215 mocked tests missed and why standard RAGAS scores a
+cite-or-refuse system *backwards*. **Start there.**
+
+The corpus is 6 classic ML papers from arXiv and the dataset is 48 hand-written questions across
+6 types (factual, multi-hop, comparative, numerical, unanswerable, long-tail); the harness itself
+is documented in [`evaluation/README.md`](evaluation/README.md).
 
 ```bash
 python evaluation/corpus/download_papers.py        # fetch the 6 papers
