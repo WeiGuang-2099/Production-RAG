@@ -5,13 +5,11 @@ reranking, **grounded & cited generation with refusal**, real token streaming, p
 tracking, a semantic cache, and a measurable evaluation harness — packaged for one-command
 Docker deployment.
 
+[![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-215%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-219%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
-
-<!-- After pushing to GitHub, add the live CI badge:
-![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg) -->
 
 > **Built test-first, then measured against real keys.** The eval surfaced 3 bugs 215 mocked
 > tests couldn't, and showed standard RAGAS *penalizes correct refusals* — the wrong yardstick
@@ -118,7 +116,8 @@ npm run build               # static assets in frontend/dist for Vercel/Netlify
 ```
 
 The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the SPA origin
-(`http://localhost:5173` in dev). The public demo runs the backend with `API_KEY_HASH` unset.
+(`http://localhost:5173` in dev). For an open public demo, run the backend with `API_KEY_HASH`
+unset.
 
 **Chat** — grounded answer with `[n]` citations and expandable source chunks (including a
 knowledge-graph hit):
@@ -186,7 +185,7 @@ real measurement pitfall for cite-or-refuse systems that the
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 215 tests, all mocked (no services needed)
+pytest -q                                  # 219 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -220,7 +219,10 @@ All via `.env` (see `.env.example` for the full annotated list).
 |---|---|---|
 | POST | `/chat` | Answer with sources + token/cost usage |
 | POST | `/chat/stream` | Token-by-token NDJSON stream |
-| POST | `/ingest` | Ingest a PDF/Markdown file or URL |
+| POST | `/agent` | Corrective-RAG agent answer with trace (route / steps / attempts) |
+| POST | `/agent/stream` | Agent answer as an NDJSON stream |
+| POST | `/ingest` | Ingest a PDF/Markdown file (under `DATA_DIR`) or URL |
+| POST | `/ingest/upload` | Upload a PDF/Markdown file (multipart) and ingest it |
 | GET | `/ingest/documents` | List ingested documents |
 | DELETE | `/ingest/documents/{id}` | Remove an ingestion record |
 | GET | `/health/live` · `/health/ready` | Liveness / readiness probes |
