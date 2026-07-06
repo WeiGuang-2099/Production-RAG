@@ -120,7 +120,15 @@ npm run build               # static assets in frontend/dist for Vercel/Netlify
 The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the SPA origin
 (`http://localhost:5173` in dev). The public demo runs the backend with `API_KEY_HASH` unset.
 
-<!-- Add a screenshot/GIF here: ![demo](docs/demo.png) -->
+**Chat** — grounded answer with `[n]` citations and expandable source chunks (including a
+knowledge-graph hit):
+
+![Chat: grounded, cited answers with expandable sources](docs/screenshots/chat.png)
+
+**Agent mode** — the corrective-RAG trace (`route → retrieve → grade → generate`) is shown above
+the answer, with per-query token and cost accounting below it:
+
+![Agent mode: corrective-RAG trace with token and cost accounting](docs/screenshots/agent.png)
 
 ## Evaluation
 
