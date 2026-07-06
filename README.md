@@ -5,13 +5,11 @@ reranking, **grounded & cited generation with refusal**, real token streaming, p
 tracking, a semantic cache, and a measurable evaluation harness — packaged for one-command
 Docker deployment.
 
+[![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![tests](https://img.shields.io/badge/tests-219%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
-
-<!-- After pushing to GitHub, add the live CI badge:
-![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg) -->
 
 > **Built test-first, then measured against real keys.** The eval surfaced 3 bugs 215 mocked
 > tests couldn't, and showed standard RAGAS *penalizes correct refusals* — the wrong yardstick
