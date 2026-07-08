@@ -51,3 +51,7 @@ Thumbs.db
 # Project-specific
 .claude/
 .qoder/
+
+# Internal planning docs (local-only, never committed)
+docs/plans/
+docs/superpowers/
