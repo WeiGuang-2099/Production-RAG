@@ -105,3 +105,42 @@ def test_search(mock_qdrant):
         results = vs.search("test query", top_k=5)
         assert len(results) == 1
         assert results[0][1] == 0.9
+
+
+def test_search_passes_source_filter(mock_qdrant):
+    mock_instance, _ = mock_qdrant
+    mock_instance.similarity_search_with_score.return_value = []
+
+    with patch("app.retrieval.vector_store.get_embedder") as mock_emb, \
+         patch("app.retrieval.vector_store.get_settings") as mock_s:
+        mock_emb.return_value = MagicMock()
+        mock_s.return_value.QDRANT_URL = "http://localhost:6333"
+        mock_s.return_value.COLLECTION_NAME = "test_col"
+        mock_s.return_value.QDRANT_API_KEY = None
+
+        vs = VectorStore()
+        vs.search("q", top_k=5, sources=["./data/a.pdf", "./data/b.pdf"])
+
+        _, kwargs = mock_instance.similarity_search_with_score.call_args
+        flt = kwargs["filter"]
+        cond = flt.must[0]
+        assert cond.key == "metadata.source"
+        assert set(cond.match.any) == {"./data/a.pdf", "./data/b.pdf"}
+
+
+def test_search_without_sources_sends_no_filter(mock_qdrant):
+    mock_instance, _ = mock_qdrant
+    mock_instance.similarity_search_with_score.return_value = []
+
+    with patch("app.retrieval.vector_store.get_embedder") as mock_emb, \
+         patch("app.retrieval.vector_store.get_settings") as mock_s:
+        mock_emb.return_value = MagicMock()
+        mock_s.return_value.QDRANT_URL = "http://localhost:6333"
+        mock_s.return_value.COLLECTION_NAME = "test_col"
+        mock_s.return_value.QDRANT_API_KEY = None
+
+        vs = VectorStore()
+        vs.search("q", top_k=5)
+
+        _, kwargs = mock_instance.similarity_search_with_score.call_args
+        assert kwargs.get("filter") is None
