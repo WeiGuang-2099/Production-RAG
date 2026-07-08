@@ -110,6 +110,27 @@ What 4.6x adversarial scale actually changed:
   Qdrant session rebuild is a scaling liability, but at 2.2k chunks it is not
   yet the bottleneck.
 
+### Generation at scale: the refusal contract holds
+
+RAGAS (grounded prompt, full 48 questions) rerun against the 30-paper corpus
+(`*_grounded_scale30.json`): overall faithfulness 0.625 / answer_relevancy
+0.603 / context_recall 0.865 / context_precision 0.803 — the refusal-penalty
+artifact explained below applies here too. The two numbers that actually
+matter for a cite-or-refuse system:
+
+- **Refusal on the 5 unanswerable questions: still 5/5.** 4.6x more
+  plausible-looking context — much of it deliberately confusable — did not
+  bait the grounded prompt into answering: every unanswerable question got
+  "I cannot answer this from the provided documents" (verified by reading
+  regenerated answers, consistent with each item's 0.000/0.000
+  faithfulness/relevancy signature in the scored run).
+- **Multi-hop over-refusal did not meaningfully worsen: 4-5/10 vs 4/10 at
+  6 papers** (same `RERANK_TOP_K=5`). One question (q019) is borderline —
+  refusal signature in the scored run, but a correct cited answer
+  ("BART-large [3]") when regenerated. So the distractors degrade *ranking*
+  (table above), but the extra noise neither triggered hallucination nor
+  collapsed answerable coverage.
+
 ## End-to-end RAGAS
 
 ```bash
