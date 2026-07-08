@@ -20,6 +20,27 @@ These were chosen because (a) they are well-known reference points, (b) they
 naturally create cross-paper relationships ideal for multi-hop questions, and
 (c) PDFs are stable and downloadable.
 
+### Scale-robustness corpus (30 papers)
+
+The ablation can also run against a 4.6x corpus (2,194 chunks) that adds 24
+distractor papers deliberately confusable with the 6 above — see `DISTRACTORS`
+in [`corpus/download_papers.py`](corpus/download_papers.py). None of their
+slugs appear in `source_papers`, so retrieving a distractor is always a scored
+miss. The scale corpus lives in its own data dir and Qdrant collection so the
+6-paper corpus stays intact:
+
+```bash
+DATA_DIR=./data_scale python evaluation/corpus/download_papers.py --with-distractors
+DATA_DIR=./data_scale COLLECTION_NAME=rag_docs_scale30 GRAPH_EXTRACTOR=llm \
+    python evaluation/ingest_corpus.py --with-distractors
+DATA_DIR=./data_scale COLLECTION_NAME=rag_docs_scale30 \
+    python evaluation/run_ablation.py --k 5 --label scale30
+```
+
+Note: LLM graph extraction is one call per chunk (~1,700 new chunks, roughly
+$6-10 with gpt-4o, 1-2 hours; interruptible — per-paper tracking resumes). The
+retrieval ablation itself never calls the generation model.
+
 ## Question set
 
 `eval_dataset.json` contains 48 questions. Each item has:

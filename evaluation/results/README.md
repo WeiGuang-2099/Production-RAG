@@ -52,6 +52,64 @@ What this honestly shows on this corpus:
 failure is now handled with retry + backoff in `app/reranker/reranker.py`; the
 numbers above are from a production key.)
 
+## Scale robustness: 6 papers vs 30 papers
+
+The 6-paper ablation has a known blind spot: six topically distinct papers
+separate so cleanly in embedding space that dense retrieval starts near the
+ceiling (hit@5 = 1.000), so the table above measures *which knob moves what*,
+not where quality comes from under pressure. To create that pressure without
+touching the dataset, a second corpus adds 24 **adversarial distractor**
+papers — for every ground-truth paper, several that a retriever plausibly
+confuses with it (RoBERTa/ALBERT/ELECTRA vs BERT; DPR/FiD/REALM/ColBERT vs
+RAG; adapters/prefix-tuning/QLoRA vs LoRA; self-consistency/ReAct vs CoT...).
+The 48 questions and metrics are unchanged; no distractor slug appears in any
+`source_papers`, so retrieving one is always a scored miss.
+
+Both runs 2026-07-08 (UTC), same session, machine, and keys; `top_k=10`,
+recall@5 over the reranked top-5. 6-paper corpus: 479 chunks (`rag_docs`);
+30-paper corpus: 2,194 chunks (`rag_docs_scale30`); both graphs built by the
+gpt-4o extractor. Regenerate with:
+
+```bash
+python evaluation/run_ablation.py --k 5 --label base6
+DATA_DIR=./data_scale COLLECTION_NAME=rag_docs_scale30 \
+    python evaluation/run_ablation.py --k 5 --label scale30
+```
+
+| stage | recall@5 6p | recall@5 30p | mrr 6p | mrr 30p | hit@5 6p | hit@5 30p | p50_ms 6p | p50_ms 30p |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline (dense)   | 0.934 | 0.934 | 0.979 | 0.844 | 1.000 | 1.000 | 1015 | 1000 |
+| +bm25 (hybrid RRF) | 0.972 | 0.941 | 0.958 | 0.839 | 1.000 | 0.979 | 1010 | 1041 |
+| +rerank (Cohere)   | 0.962 | 0.934 | 0.979 | 0.877 | 1.000 | 1.000 | 1351 | 1399 |
+| +graph             | 0.903 | 0.872 | 0.927 | 0.815 | 0.958 | 0.938 | 1400 | 1395 |
+
+What 4.6x adversarial scale actually changed:
+
+- **The failure mode is ranking, not recall.** Dense recall@5 did not move
+  (0.934 -> 0.934) and a correct paper still always makes the top-5
+  (hit@5 = 1.000) — but MRR collapsed 0.979 -> 0.844. Distractors do not push
+  the right paper out of the window; they crowd the top of it. A system
+  serving a tight top-k context feels this directly.
+- **BM25's recall edge nearly vanishes** (+0.038 at 6p -> +0.007 at 30p) and
+  its RRF reshuffle now costs a hit (hit@5 0.979): keyword overlap is exactly
+  what confusable papers share (every BERT-variant paper is dense with
+  "BERT"), so at scale the keyword channel pulls distractors in. A
+  component's value is corpus-dependent — the 6p and 30p columns genuinely
+  disagree about BM25.
+- **The reranker's contribution roughly doubles, making it the component
+  that earns its keep at scale.** At 6p it added +0.021 MRR; at 30p it adds
+  +0.038 (0.839 -> 0.877) and repairs the hit@5 that BM25 lost (0.979 ->
+  1.000). It mitigates but does not cancel the crowding: best-achievable MRR
+  still fell 0.979 -> 0.877.
+- **Graph's verdict is unchanged and amplified** (recall 0.872, MRR 0.815,
+  hit@5 0.938): lexical entity expansion pulls in near-topic chunks, which is
+  precisely what the distractor set is made of.
+- **Latency is flat at 4.6x** (p50 ~1.0s dense, ~1.4s reranked at both
+  scales): retrieval time is still dominated by the per-query embedding API
+  round-trip, not local index work. The known per-query BM25 unpickle /
+  Qdrant session rebuild is a scaling liability, but at 2.2k chunks it is not
+  yet the bottleneck.
+
 ## End-to-end RAGAS
 
 ```bash
