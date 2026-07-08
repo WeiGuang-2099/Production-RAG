@@ -38,12 +38,18 @@ class BM25Store:
         self._bm25 = BM25Okapi(self._tokenized_corpus)
         self._save()
 
-    def search(self, query: str, top_k: int = 5) -> list[tuple[Document, float]]:
+    def search(
+        self, query: str, top_k: int = 5, sources: list[str] | None = None
+    ) -> list[tuple[Document, float]]:
         if self._bm25 is None or not self._documents:
             return []
         tokenized_query = _tokenize(query)
         scores = self._bm25.get_scores(tokenized_query)
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+        indices = range(len(scores))
+        if sources:
+            allowed = set(sources)
+            indices = [i for i in indices if self._documents[i].metadata.get("source") in allowed]
+        top_indices = sorted(indices, key=lambda i: scores[i], reverse=True)[:top_k]
         return [(self._documents[i], float(scores[i])) for i in top_indices if scores[i] > 0]
 
     def _save(self) -> None:
