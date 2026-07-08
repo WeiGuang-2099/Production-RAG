@@ -18,13 +18,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Order mirrors evaluation/corpus/download_papers.py.
-SLUGS = ["attention", "bert", "gpt3", "rag", "lora", "cot"]
+# Slugs come from the download manifest so the two scripts cannot drift.
+from evaluation.corpus.download_papers import DISTRACTORS, PAPERS  # noqa: E402
+
+CORE_SLUGS = [p["slug"] for p in PAPERS]
+DISTRACTOR_SLUGS = [p["slug"] for p in DISTRACTORS]
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Ingest the 6-paper eval corpus in-process")
+    p = argparse.ArgumentParser(description="Ingest the eval corpus in-process")
     p.add_argument("--force", action="store_true", help="Re-ingest even if already tracked")
+    p.add_argument(
+        "--with-distractors",
+        action="store_true",
+        help="Also ingest the 24 distractor papers (scale-robustness corpus)",
+    )
     return p.parse_args()
 
 
@@ -34,8 +42,9 @@ def main() -> int:
     from app.core.pipeline import ingest_pipeline
 
     settings = get_settings()
+    slugs = CORE_SLUGS + (DISTRACTOR_SLUGS if args.with_distractors else [])
     print(
-        f"Ingesting {len(SLUGS)} papers "
+        f"Ingesting {len(slugs)} papers into DATA_DIR={settings.DATA_DIR} "
         f"(graph_extractor={settings.GRAPH_EXTRACTOR}, chunk_size={settings.CHUNK_SIZE}, "
         f"force={args.force})"
     )
@@ -43,10 +52,10 @@ def main() -> int:
     total_chunks = 0
     failures: list[str] = []
     t_all = time.time()
-    for slug in SLUGS:
+    for slug in slugs:
         # The source string must match how the retrieval metrics derive a paper
-        # slug (basename stem of metadata["source"]): ./data/papers/<slug>.pdf.
-        source = f"./data/papers/{slug}.pdf"
+        # slug (basename stem of metadata["source"]): <DATA_DIR>/papers/<slug>.pdf.
+        source = f"{settings.DATA_DIR}/papers/{slug}.pdf"
         t0 = time.time()
         try:
             result = ingest_pipeline(source, force=args.force)

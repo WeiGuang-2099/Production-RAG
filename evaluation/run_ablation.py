@@ -64,6 +64,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--k", type=int, default=5, help="Cutoff for recall@k / hit@k (default 5)")
     p.add_argument("--top-k", type=int, default=10, help="Initial retrieval depth before rerank (default 10)")
     p.add_argument("--no-save", action="store_true", help="Skip writing the report")
+    p.add_argument("--label", default=None, help="Filename suffix for saved reports (e.g. base6, scale30)")
     return p.parse_args()
 
 
@@ -127,11 +128,12 @@ def main() -> int:
 
     if not args.no_save:
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        suffix = f"_{args.label}" if args.label else ""
         out_dir = Path(__file__).resolve().parent / "results"
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{ts}_ablation.md").write_text(table + "\n", encoding="utf-8")
-        (out_dir / f"{ts}_ablation.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-        print(f"\nSaved: evaluation/results/{ts}_ablation.md")
+        (out_dir / f"{ts}_ablation{suffix}.md").write_text(table + "\n", encoding="utf-8")
+        (out_dir / f"{ts}_ablation{suffix}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+        print(f"\nSaved: evaluation/results/{ts}_ablation{suffix}.md")
 
     return 0
 

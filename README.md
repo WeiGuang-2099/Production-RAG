@@ -174,6 +174,14 @@ actively hurts here** (recall 0.903, hit@5 0.958), as cross-paper expansion adds
 noise on a small, well-separated corpus. So the hybrid+rerank defaults are
 justified and graph is honestly flagged as not paying off at this scale.
 
+**Scale robustness** — a second corpus adds 24 *adversarial* distractor papers
+(RoBERTa/ALBERT vs BERT, DPR/FiD vs RAG, QLoRA vs LoRA, ...), growing the index
+4.6x to 2,194 chunks with the same 48 questions. Recall holds (0.934, hit@5
+1.000) but **ranking degrades** (MRR 0.979 → 0.844) — and the reranker becomes
+the highest-value component, roughly doubling its MRR contribution while BM25's
+recall edge nearly vanishes. Paired tables and the honest read in
+[`evaluation/results/`](evaluation/results/README.md).
+
 End-to-end (RAGAS, grounded vs basic), the result is more interesting than the
 cliche: the grounded prompt **refuses 5/5 unanswerable questions** (basic 0/5),
 yet standard RAGAS faithfulness/relevancy *penalize* that correct refusal — a

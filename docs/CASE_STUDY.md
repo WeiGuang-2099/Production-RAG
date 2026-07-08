@@ -122,6 +122,46 @@ surfaced three bugs that 215 *mocked* unit tests never could:
    gracefully. The lesson is the real deliverable here — *measure, and trust no
    result until you have checked its failure path.*
 
+## Finding 4 — at 5x adversarial scale, ranking degrades, recall does not — and the reranker becomes the component that earns its keep
+
+Finding 1's caveat was that six well-separated papers leave dense retrieval
+near the ceiling. So I grew the corpus 4.6x (479 -> 2,194 chunks) with 24
+*adversarial* distractors — papers a retriever plausibly confuses with the
+ground truth (RoBERTa/ALBERT vs BERT, DPR/FiD/REALM vs RAG, adapters/QLoRA vs
+LoRA, self-consistency/ReAct vs CoT) — and reran the identical 48 questions.
+Same-day paired runs, same machine and keys (2026-07-08 UTC):
+
+| stage | recall@5 (6p) | recall@5 (30p) | mrr (6p) | mrr (30p) |
+| --- | --- | --- | --- | --- |
+| baseline (dense)   | 0.934 | 0.934 | 0.979 | 0.844 |
+| +bm25 (hybrid RRF) | 0.972 | 0.941 | 0.958 | 0.839 |
+| +rerank (Cohere)   | 0.962 | 0.934 | 0.979 | 0.877 |
+| +graph             | 0.903 | 0.872 | 0.927 | 0.815 |
+
+Three things the paired table says that neither corpus says alone:
+
+1. **Adversarial density attacks ranking, not recall.** Dense recall@5 is
+   unchanged and hit@5 stays 1.000 — the right paper still makes the top-5 —
+   but MRR collapses 0.979 -> 0.844 because confusable neighbors crowd the
+   top ranks. For a system feeding a tight context window, MRR is the metric
+   that predicts answer quality, and it is the one that broke.
+2. **Component value is corpus-dependent.** BM25, the recall hero at 6 papers
+   (+0.038), is nearly worthless at 30 (+0.007) and now costs a hit@5 —
+   keyword overlap is exactly what BERT-variants share with BERT. The
+   reranker moves the other way: its MRR contribution roughly doubles
+   (+0.021 -> +0.038) and it repairs the hit BM25 lost. Tuning the stack on
+   the small corpus alone would have overvalued BM25 and undervalued the
+   reranker.
+3. **Graph keeps not paying off, more so** (recall 0.872, MRR 0.815, hit@5
+   0.938) — lexical entity expansion is the wrong tool when the corpus is
+   full of near-topic neighbors by design.
+
+The scale run also killed a latency hypothesis: p50 stayed ~1.0s (dense) /
+~1.4s (reranked) at 4.6x the chunks, so retrieval latency is still dominated
+by the embedding API round-trip, not local index work — which reprioritizes
+the optimization backlog toward parallelizing the retrieval legs over caching
+the local indexes.
+
 ## Cost and latency reality
 
 - **Retrieval latency** (includes the per-query embedding call): p50 ~1.0s, p95
@@ -145,8 +185,9 @@ surfaced three bugs that 215 *mocked* unit tests never could:
   synthesis questions that still refuse even at k=8; and move graph extraction to
   gpt-4o-mini + bounded concurrency (~15x cheaper, ~10x faster).
 - **Known architectural limits, called out not hidden:** GraphRAG is intentionally
-  lightweight (LLM/NER triples + lexical matching) and did not pay off at this
-  scale; the semantic cache is process-local; BM25 rebuilds per ingest.
+  lightweight (LLM/NER triples + lexical matching) and did not pay off at either
+  corpus scale (6 or 30 papers — Finding 4); the semantic cache is process-local;
+  BM25 rebuilds per ingest.
 - **Still to build:** a live hosted demo, and a load test reporting p95 latency and
   $/1k queries.
 
