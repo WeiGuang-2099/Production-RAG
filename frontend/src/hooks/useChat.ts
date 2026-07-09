@@ -21,6 +21,7 @@ export interface SendOpts {
   agent: boolean;
   stream: boolean;
   topK: number;
+  sources?: string[];
 }
 
 const MAX_PERSISTED = 50;
@@ -73,7 +74,11 @@ export function useChat(options: { persistKey?: string } = {}) {
       setBusy(true);
       setMessages((ms) => [...ms, { role: "user", content: question }, { role: "assistant", content: "" }]);
       const base = opts.agent ? "/agent" : "/chat";
-      const body = { question, top_k: opts.topK };
+      const body: { question: string; top_k: number; sources?: string[] } = {
+        question,
+        top_k: opts.topK,
+      };
+      if (opts.sources && opts.sources.length > 0) body.sources = opts.sources;
       try {
         if (opts.stream) {
           const stream = await postStream(client, `${base}/stream`, body);

@@ -6,6 +6,11 @@ import { SettingsProvider } from "../context/SettingsContext";
 import { ToastProvider } from "../context/ToastContext";
 import { ChatPage } from "./ChatPage";
 
+// Isolate the chat stream's fetch stub from the documents fetch on mount
+vi.mock("../hooks/useDocuments", () => ({
+  useDocuments: () => ({ docs: [], refresh: vi.fn() }),
+}));
+
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
