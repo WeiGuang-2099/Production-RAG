@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiError, postJson, postStream } from "../api/client";
 import { streamNdjson } from "../api/stream";
 import type { ChatResult, Guardrails, SourceItem, Usage } from "../api/types";
@@ -23,11 +23,40 @@ export interface SendOpts {
   topK: number;
 }
 
-export function useChat() {
+const MAX_PERSISTED = 50;
+
+export function useChat(options: { persistKey?: string } = {}) {
+  const { persistKey } = options;
   const { client } = useSettings();
   const { toast } = useToast();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (!persistKey) return [];
+    try {
+      const raw = localStorage.getItem(persistKey);
+      return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!persistKey) return;
+    try {
+      // An empty thread removes the key so "New chat" leaves no residue
+      if (messages.length === 0) {
+        localStorage.removeItem(persistKey);
+      } else {
+        localStorage.setItem(persistKey, JSON.stringify(messages.slice(-MAX_PERSISTED)));
+      }
+    } catch {
+      /* ignore quota/serialization errors; keep in-memory state */
+    }
+  }, [messages, persistKey]);
+
+  const clear = useCallback(() => {
+    setMessages([]);
+  }, []);
 
   const patchLast = useCallback((patch: Partial<ChatMessage> | ((m: ChatMessage) => ChatMessage)) => {
     setMessages((ms) => {
@@ -90,5 +119,5 @@ export function useChat() {
     [busy, client, patchLast, toast],
   );
 
-  return { messages, busy, send };
+  return { messages, busy, send, clear };
 }

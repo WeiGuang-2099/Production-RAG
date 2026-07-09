@@ -1,13 +1,10 @@
-import { useState } from "react";
 import { ChatControls } from "../components/chat/ChatControls";
 import { MessageThread } from "../components/chat/MessageThread";
-import { useChat } from "../hooks/useChat";
+import { useChatContext } from "../context/ChatContext";
 
 export function ChatPage() {
-  const { messages, busy, send } = useChat();
-  const [agent, setAgent] = useState(false);
-  const [stream, setStream] = useState(true);
-  const [topK, setTopK] = useState(5);
+  const { messages, busy, send, clear, agent, stream, topK, setAgent, setStream, setTopK } =
+    useChatContext();
 
   return (
     <div className="flex h-[calc(100vh-9rem)] flex-col rounded-lg border border-muted/30 bg-surface">
@@ -26,6 +23,7 @@ export function ChatPage() {
         onAgent={setAgent}
         onStream={setStream}
         onTopK={setTopK}
+        onClear={clear}
         onSend={(q) => send(q, { agent, stream, topK })}
       />
     </div>
