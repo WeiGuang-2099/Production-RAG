@@ -18,6 +18,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 class AgentRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=50)
+    sources: list[str] | None = None
 
 
 class AgentResponse(BaseModel):
@@ -36,7 +37,7 @@ async def agent(request: Request, body: AgentRequest, _key=Depends(verify_api_ke
     blocked = check_input(body.question)
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
-    result = await asyncio.to_thread(run_agent, body.question, body.top_k)
+    result = await asyncio.to_thread(run_agent, body.question, body.top_k, body.sources)
     guarded = apply_output(result["answer"])
     return AgentResponse(
         answer=guarded["answer"],
@@ -58,7 +59,7 @@ async def agent_stream(request: Request, body: AgentRequest, _key=Depends(verify
 
     async def event_generator():
         try:
-            async for event in stream_agent(body.question, body.top_k):
+            async for event in stream_agent(body.question, body.top_k, body.sources):
                 if event.get("event") == "done":
                     g = apply_output(event.get("answer", ""))
                     event["answer"] = g["answer"]

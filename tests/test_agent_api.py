@@ -16,7 +16,7 @@ def test_agent_endpoint_returns_route_and_usage(client):
 
 
 def test_agent_stream_endpoint_emits_events(client):
-    async def fake_stream(question, top_k=None):
+    async def fake_stream(question, top_k=None, sources=None):
         yield {"event": "step", "node": "route"}
         yield {"event": "done", "answer": "A", "usage": {}}
 
@@ -44,3 +44,12 @@ def test_agent_redacts_pii_in_answer(client):
         resp = client.post("/agent", json={"question": "give me the ssn"})
         assert resp.status_code == 200
         assert "[REDACTED_SSN]" in resp.json()["answer"]
+
+
+def test_agent_forwards_sources(client):
+    with patch("app.api.routes_agent.run_agent") as mock_run:
+        mock_run.return_value = {"answer": "A", "sources": [], "latency_ms": 5.0,
+                                 "usage": {}, "route": "retrieve", "attempts": 0}
+        resp = client.post("/agent", json={"question": "q", "sources": ["only.pdf"]})
+        assert resp.status_code == 200
+        mock_run.assert_called_once_with("q", 5, ["only.pdf"])

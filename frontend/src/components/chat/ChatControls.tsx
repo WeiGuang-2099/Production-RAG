@@ -9,10 +9,11 @@ interface Props {
   onAgent: (v: boolean) => void;
   onStream: (v: boolean) => void;
   onTopK: (v: number) => void;
+  onClear: () => void;
   onSend: (q: string) => void;
 }
 
-export function ChatControls({ agent, stream, topK, busy, onAgent, onStream, onTopK, onSend }: Props) {
+export function ChatControls({ agent, stream, topK, busy, onAgent, onStream, onTopK, onClear, onSend }: Props) {
   const [text, setText] = useState("");
   const submit = () => {
     if (!text.trim()) return;
@@ -39,6 +40,13 @@ export function ChatControls({ agent, stream, topK, busy, onAgent, onStream, onT
             className="w-16 rounded border border-muted/50 px-1"
           />
         </label>
+        <button
+          type="button"
+          className="ml-auto rounded border border-muted/50 px-2 py-1 text-xs hover:bg-muted/10"
+          onClick={onClear}
+        >
+          New chat
+        </button>
       </div>
       <div className="flex gap-2">
         <input

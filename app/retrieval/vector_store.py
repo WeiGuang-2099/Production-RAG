@@ -3,6 +3,7 @@ import uuid
 from langchain_core.documents import Document
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
+from qdrant_client import models as qmodels
 from qdrant_client.models import Distance, VectorParams
 
 from app.config import get_settings
@@ -51,6 +52,18 @@ class VectorStore:
         ids = [self._point_id(doc) for doc in documents]
         return store.add_documents(documents, ids=ids)
 
-    def search(self, query: str, top_k: int = 5) -> list[tuple[Document, float]]:
+    def search(
+        self, query: str, top_k: int = 5, sources: list[str] | None = None
+    ) -> list[tuple[Document, float]]:
         store = self._get_store()
-        return store.similarity_search_with_score(query, k=top_k)
+        flt = None
+        if sources:
+            flt = qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="metadata.source",
+                        match=qmodels.MatchAny(any=list(sources)),
+                    )
+                ]
+            )
+        return store.similarity_search_with_score(query, k=top_k, filter=flt)

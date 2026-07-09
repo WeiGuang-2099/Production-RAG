@@ -34,7 +34,8 @@ def retrieve_node(state: dict) -> dict:
     settings = get_settings()
     query = state.get("query") or state["question"]
     top_k = state.get("top_k") or settings.TOP_K
-    return {"documents": _retrieve_and_rerank(query, top_k, settings)}
+    sources = state.get("scope_sources") or None
+    return {"documents": _retrieve_and_rerank(query, top_k, settings, sources=sources)}
 
 
 def grade_documents(state: dict) -> dict:

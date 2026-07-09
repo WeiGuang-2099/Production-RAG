@@ -46,6 +46,34 @@ def test_add_documents_is_idempotent(tmp_path):
     assert len(matching2) == 1
 
 
+def test_search_filters_by_source(tmp_path):
+    store = BM25Store(data_dir=str(tmp_path))
+    docs = [
+        Document(page_content="Machine learning is a subset of artificial intelligence.", metadata={"source": "a"}),
+        Document(page_content="Machine learning powers modern search.", metadata={"source": "b"}),
+        Document(page_content="Neural networks are used in deep learning.", metadata={"source": "c"}),
+    ]
+    store.add_documents(docs)
+
+    results = store.search("machine learning", top_k=10, sources=["b"])
+    assert len(results) == 1
+    assert results[0][0].metadata["source"] == "b"
+
+
+def test_search_empty_sources_means_all(tmp_path):
+    store = BM25Store(data_dir=str(tmp_path))
+    docs = [
+        Document(page_content="Machine learning is a subset of artificial intelligence.", metadata={"source": "a"}),
+        Document(page_content="Machine learning powers modern search.", metadata={"source": "b"}),
+        # A non-matching doc keeps the query terms' IDF positive (BM25 scores 0 when a term is in every doc)
+        Document(page_content="Neural networks are used in deep vision.", metadata={"source": "c"}),
+    ]
+    store.add_documents(docs)
+
+    assert len(store.search("machine learning", top_k=10, sources=[])) >= 2
+    assert len(store.search("machine learning", top_k=10)) >= 2
+
+
 def test_save_and_load(tmp_path):
     store1 = BM25Store(data_dir=str(tmp_path))
     docs = [

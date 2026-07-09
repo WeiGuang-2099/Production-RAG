@@ -4,7 +4,10 @@ import { SettingsProvider } from "../context/SettingsContext";
 import { ToastProvider } from "../context/ToastContext";
 import { useChat } from "./useChat";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <SettingsProvider>
@@ -45,4 +48,17 @@ test("streaming appends tokens and finalizes from the done event", async () => {
   expect(last.content).toBe("Hello");
   expect(last.sources).toHaveLength(1);
   expect(last.usage?.output_tokens).toBe(2);
+});
+
+test("hydrates messages from localStorage and clear() empties them", async () => {
+  localStorage.setItem(
+    "test-chat",
+    JSON.stringify([{ role: "user", content: "hi" }, { role: "assistant", content: "yo" }]),
+  );
+  const { result } = renderHook(() => useChat({ persistKey: "test-chat" }), { wrapper });
+  expect(result.current.messages).toHaveLength(2);
+
+  act(() => result.current.clear());
+  expect(result.current.messages).toHaveLength(0);
+  expect(localStorage.getItem("test-chat")).toBeNull();
 });

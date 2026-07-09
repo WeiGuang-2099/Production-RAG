@@ -79,3 +79,16 @@ def test_answer_directly_has_no_sources():
         out = nodes.answer_directly({"question": "hi"})
         assert out["answer"] == "general answer"
         assert out["sources"] == []
+
+
+def test_retrieve_node_forwards_scope_sources(monkeypatch):
+    import app.agent.nodes as nodes
+
+    captured = {}
+    def fake_retrieve(query, top_k, settings, sources=None):
+        captured["sources"] = sources
+        return []
+    monkeypatch.setattr(nodes, "_retrieve_and_rerank", fake_retrieve)
+
+    nodes.retrieve_node({"question": "q", "query": "q", "top_k": 5, "scope_sources": ["only.pdf"]})
+    assert captured["sources"] == ["only.pdf"]

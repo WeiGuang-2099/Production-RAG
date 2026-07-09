@@ -42,3 +42,13 @@ def test_hybrid_retriever():
     results = retriever.retrieve("test query", top_k=3)
     assert len(results) <= 3
     assert len(results) > 0
+
+
+def test_retrieve_passes_sources_to_both_stores():
+    vs, bm25 = MagicMock(), MagicMock()
+    vs.search.return_value = []
+    bm25.search.return_value = []
+    HybridRetriever(vector_store=vs, bm25_store=bm25).retrieve("q", top_k=5, sources=["x"])
+
+    assert vs.search.call_args.kwargs["sources"] == ["x"]
+    assert bm25.search.call_args.kwargs["sources"] == ["x"]

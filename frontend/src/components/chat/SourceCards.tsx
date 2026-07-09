@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { displaySource } from "../../api/sources";
 import type { SourceItem } from "../../api/types";
 
 export function SourceCards({ sources }: { sources: SourceItem[] }) {
@@ -25,7 +26,9 @@ export function SourceCards({ sources }: { sources: SourceItem[] }) {
                 <li key={i} className="rounded-md border border-muted/30 bg-surface p-3 text-sm">
                   <div className="flex items-center gap-2 font-mono text-xs text-muted">
                     <span className="text-primary">[{String(citation)}]</span>
-                    <span className="truncate">{s.metadata?.source ?? "unknown"}</span>
+                    <span className="truncate" title={s.metadata?.source ?? "unknown"}>
+                      {displaySource(s.metadata?.source ?? "unknown")}
+                    </span>
                     {typeof score === "number" && <span>· {score.toFixed(2)}</span>}
                   </div>
                   <p className="mt-1 text-ink/80">{s.content.slice(0, 500)}</p>

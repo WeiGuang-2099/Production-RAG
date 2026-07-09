@@ -1,17 +1,28 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
+import { ChatProvider } from "../context/ChatContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { ToastProvider } from "../context/ToastContext";
 import { ChatPage } from "./ChatPage";
 
-afterEach(() => vi.restoreAllMocks());
+// Isolate the chat stream's fetch stub from the documents fetch on mount
+vi.mock("../hooks/useDocuments", () => ({
+  useDocuments: () => ({ docs: [], refresh: vi.fn() }),
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 function ui() {
   return render(
     <SettingsProvider>
       <ToastProvider>
-        <ChatPage />
+        <ChatProvider>
+          <ChatPage />
+        </ChatProvider>
       </ToastProvider>
     </SettingsProvider>,
   );
