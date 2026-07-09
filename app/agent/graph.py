@@ -60,10 +60,11 @@ def _get_compiled():
     return _compiled
 
 
-def run_agent(question: str, top_k: int | None = None) -> dict:
+def run_agent(question: str, top_k: int | None = None, sources: list[str] | None = None) -> dict:
     settings = get_settings()
     start = time.time()
-    init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K, "attempts": 0}
+    init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K,
+            "attempts": 0, "scope_sources": sources or []}
     final = _get_compiled().invoke(init)
     return {
         "answer": final.get("answer", ""),
@@ -75,10 +76,13 @@ def run_agent(question: str, top_k: int | None = None) -> dict:
     }
 
 
-async def stream_agent(question: str, top_k: int | None = None) -> AsyncIterator[dict]:
+async def stream_agent(
+    question: str, top_k: int | None = None, sources: list[str] | None = None
+) -> AsyncIterator[dict]:
     settings = get_settings()
     start = time.time()
-    init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K, "attempts": 0}
+    init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K,
+            "attempts": 0, "scope_sources": sources or []}
     final: dict = {}
     async for update in _get_compiled().astream(init, stream_mode="updates"):
         for node_name, partial in update.items():
