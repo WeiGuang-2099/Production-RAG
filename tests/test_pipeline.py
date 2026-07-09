@@ -132,7 +132,7 @@ def test_query_pipeline_respects_top_k_argument():
 
         from app.core.pipeline import query_pipeline
         query_pipeline("What is AI?", top_k=12)
-        mock_retriever.retrieve.assert_called_once_with("What is AI?", top_k=12)
+        mock_retriever.retrieve.assert_called_once_with("What is AI?", top_k=12, sources=None)
 
 
 def test_query_pipeline_short_circuits_on_cache_hit():
@@ -272,7 +272,7 @@ def test_query_pipeline_dense_mode_uses_vector_only():
         from app.core.pipeline import query_pipeline
         query_pipeline("What is AI?", top_k=7)
 
-        mock_vs.search.assert_called_once_with("What is AI?", top_k=7)
+        mock_vs.search.assert_called_once_with("What is AI?", top_k=7, sources=None)
         mock_hr_cls.return_value.retrieve.assert_not_called()
         mock_bm25_cls.assert_not_called()
 
@@ -374,7 +374,7 @@ def test_retrieve_sources_hyde_searches_with_hypothetical_document():
         retrieve_sources("orig")
 
         mock_hr_cls.return_value.retrieve.assert_called_once_with(
-            "Hypothetical answer passage.", top_k=5
+            "Hypothetical answer passage.", top_k=5, sources=None
         )
 
 
@@ -485,3 +485,46 @@ def test_list_documents_reads_tracking(tmp_path):
         from app.core.pipeline import list_documents
         docs = list_documents()
         assert docs == [{"id": "h1", "source": "a.pdf", "chunks": 3, "ingested_at": "2026-01-01"}]
+
+
+def test_retrieve_and_rerank_skips_graph_when_scoped(monkeypatch):
+    import app.core.pipeline as pipe
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "RETRIEVAL_MODE", "dense", raising=False)
+    monkeypatch.setattr(settings, "GRAPH_EXTRACTOR", "nlp", raising=False)
+
+    class _VS:
+        def search(self, q, top_k=5, sources=None):
+            return []
+    monkeypatch.setattr(pipe, "VectorStore", lambda: _VS())
+
+    called = {"graph": False}
+
+    class _GR:
+        def __init__(self, *a, **k): pass
+        def retrieve(self, *a, **k):
+            called["graph"] = True
+            return []
+    monkeypatch.setattr(pipe, "GraphRetriever", _GR)
+    monkeypatch.setattr(pipe, "GraphStore", lambda **k: object())
+    monkeypatch.setattr(pipe, "RerankerService", lambda reranker: type("R", (), {"rerank": lambda self, q, d, top_k: d})())
+    monkeypatch.setattr(pipe, "get_reranker", lambda: object())
+
+    pipe._retrieve_and_rerank("q", 5, settings, sources=["only.pdf"])
+    assert called["graph"] is False
+
+
+def test_query_pipeline_bypasses_cache_when_scoped(monkeypatch):
+    import app.core.pipeline as pipe
+
+    monkeypatch.setattr(pipe, "_retrieve_and_rerank", lambda *a, **k: [])
+    monkeypatch.setattr(pipe, "format_context", lambda docs: "")
+    monkeypatch.setattr(pipe, "complete_with_model", lambda prompt: ("answer", "model"))
+
+    cache = type("C", (), {"get": lambda self, q: {"answer": "CACHED", "sources": []}, "put": lambda self, q, r: None})()
+    monkeypatch.setattr(pipe, "_get_query_cache", lambda settings: cache)
+
+    out = pipe.query_pipeline("q", top_k=3, sources=["only.pdf"])
+    assert out["answer"] == "answer"  # not "CACHED": scoped query must skip the cache

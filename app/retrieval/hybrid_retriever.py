@@ -34,8 +34,10 @@ class HybridRetriever:
         self.vector_store = vector_store
         self.bm25_store = bm25_store
 
-    def retrieve(self, query: str, top_k: int = 5) -> list[tuple[Document, float]]:
-        vector_results = self.vector_store.search(query, top_k=top_k)
-        bm25_results = self.bm25_store.search(query, top_k=top_k)
+    def retrieve(
+        self, query: str, top_k: int = 5, sources: list[str] | None = None
+    ) -> list[tuple[Document, float]]:
+        vector_results = self.vector_store.search(query, top_k=top_k, sources=sources)
+        bm25_results = self.bm25_store.search(query, top_k=top_k, sources=sources)
         fused = rrf_fuse([vector_results, bm25_results])
         return fused[:top_k]

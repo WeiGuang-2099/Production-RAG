@@ -146,7 +146,9 @@ def _queries_for(question: str, settings) -> list[str]:
         return [question]
 
 
-def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
+def _retrieve_and_rerank(
+    question: str, top_k: int, settings, sources: list[str] | None = None
+) -> list[Document]:
     """Retrieve (dense/hybrid + optional graph) and rerank to the final docs.
 
     Shared by query_pipeline (generation) and retrieve_sources (eval/UI), so
@@ -167,9 +169,9 @@ def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
         result_lists: list[list[tuple[Document, float]]] = []
         for q in queries:
             if settings.RETRIEVAL_MODE == "dense":
-                result_lists.append(vs.search(q, top_k=top_k))
+                result_lists.append(vs.search(q, top_k=top_k, sources=sources))
             else:
-                result_lists.append(retriever.retrieve(q, top_k=top_k))
+                result_lists.append(retriever.retrieve(q, top_k=top_k, sources=sources))
 
         hybrid_results = (
             result_lists[0] if len(result_lists) == 1 else rrf_fuse(result_lists)[:top_k]
@@ -182,9 +184,10 @@ def _retrieve_and_rerank(question: str, top_k: int, settings) -> list[Document]:
         logger.error("retrieval_failed: %s", exc)
         # Continue with empty results
 
-    # Graph retrieval (optional)
+    # Graph retrieval (optional; skipped when scoped — graph docs carry no
+    # per-source payload to filter on)
     graph_docs: list[Document] = []
-    if settings.GRAPH_EXTRACTOR != "none":
+    if settings.GRAPH_EXTRACTOR != "none" and not sources:
         try:
             gs = GraphStore(data_dir=settings.DATA_DIR)
             gr = GraphRetriever(graph_store=gs)
@@ -220,7 +223,9 @@ def _docs_to_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-def retrieve_sources(question: str, top_k: int | None = None) -> list[dict]:
+def retrieve_sources(
+    question: str, top_k: int | None = None, sources: list[str] | None = None
+) -> list[dict]:
     """Retrieval-only entry point (no generation): cited sources for a query.
 
     Used by the retrieval-only evaluation and the demo UI; avoids paying for
@@ -230,7 +235,7 @@ def retrieve_sources(question: str, top_k: int | None = None) -> list[dict]:
     if top_k is None:
         top_k = settings.TOP_K
     start = time.time()
-    reranked = _retrieve_and_rerank(question, top_k, settings)
+    reranked = _retrieve_and_rerank(question, top_k, settings, sources=sources)
     retrieval_ms = (time.time() - start) * 1000
     trace_data = [
         {"content": d.page_content[:100], "score": d.metadata.get("relevance_score", 0)}
@@ -256,21 +261,25 @@ def _get_query_cache(settings) -> QueryCache | None:
     return _query_cache
 
 
-def query_pipeline(question: str, top_k: int | None = None) -> dict:
+def query_pipeline(
+    question: str, top_k: int | None = None, sources: list[str] | None = None
+) -> dict:
     settings = get_settings()
     if top_k is None:
         top_k = settings.TOP_K
     start = time.time()
     logger.info("query_start: question=%s", question[:100])
 
+    # Scoped queries bypass the cache: cache keys are question-only, so a
+    # cached unscoped answer would leak out-of-scope sources (and vice versa).
     cache = _get_query_cache(settings)
-    if cache is not None:
+    if cache is not None and not sources:
         cached = cache.get(question)
         if cached is not None:
             logger.info("cache_hit: question=%s", question[:100])
             return {**cached, "cached": True}
 
-    reranked = _retrieve_and_rerank(question, top_k, settings)
+    reranked = _retrieve_and_rerank(question, top_k, settings, sources=sources)
 
     retrieval_ms = (time.time() - start) * 1000
     trace_data = [
@@ -307,12 +316,14 @@ def query_pipeline(question: str, top_k: int | None = None) -> dict:
         "latency_ms": total_ms,
         "usage": usage,
     }
-    if cache is not None:
+    if cache is not None and not sources:
         cache.put(question, result)
     return result
 
 
-async def stream_query(question: str, top_k: int | None = None) -> AsyncIterator[dict]:
+async def stream_query(
+    question: str, top_k: int | None = None, sources: list[str] | None = None
+) -> AsyncIterator[dict]:
     """Stream a grounded answer token-by-token.
 
     Retrieval is synchronous (and not streamable), so it runs in a thread and
@@ -325,7 +336,7 @@ async def stream_query(question: str, top_k: int | None = None) -> AsyncIterator
         top_k = settings.TOP_K
     start = time.time()
 
-    reranked = await asyncio.to_thread(_retrieve_and_rerank, question, top_k, settings)
+    reranked = await asyncio.to_thread(_retrieve_and_rerank, question, top_k, settings, sources)
     retrieval_ms = (time.time() - start) * 1000
     trace_data = [
         {"content": d.page_content[:100], "score": d.metadata.get("relevance_score", 0)}
