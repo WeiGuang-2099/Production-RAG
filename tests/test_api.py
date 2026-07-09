@@ -35,7 +35,7 @@ def test_chat_passes_top_k_to_pipeline(client):
         }
         response = client.post("/chat", json={"question": "What is AI?", "top_k": 7})
         assert response.status_code == 200
-        mock_query.assert_called_once_with("What is AI?", 7)
+        mock_query.assert_called_once_with("What is AI?", 7, None)
 
 
 def test_ingest_rejects_sibling_prefix_path(client, tmp_path):
@@ -89,7 +89,7 @@ def test_chat_endpoint_returns_usage(client):
 def test_chat_stream_endpoint_emits_token_events(client):
     import json as _json
 
-    async def fake_stream(question, top_k=None):
+    async def fake_stream(question, top_k=None, sources=None):
         yield {"event": "sources", "sources": []}
         yield {"event": "token", "token": "Hi"}
         yield {"event": "done", "answer": "Hi", "usage": {}}
@@ -132,3 +132,11 @@ def test_chat_redacts_pii_in_answer(client):
         data = resp.json()
         assert "[REDACTED_EMAIL]" in data["answer"]
         assert "email" in data["guardrails"]["pii_redacted"]
+
+
+def test_chat_forwards_sources(client):
+    with patch("app.api.routes_chat.query_pipeline") as mock_query:
+        mock_query.return_value = {"answer": "ok", "sources": [], "latency_ms": 1.0}
+        response = client.post("/chat", json={"question": "q", "sources": ["only.pdf"]})
+        assert response.status_code == 200
+        mock_query.assert_called_once_with("q", 5, ["only.pdf"])

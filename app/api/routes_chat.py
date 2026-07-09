@@ -18,6 +18,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 class ChatRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=50)
+    sources: list[str] | None = None
 
 
 class SourceItem(BaseModel):
@@ -40,7 +41,7 @@ async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)
     blocked = check_input(body.question)
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
-    result = await asyncio.to_thread(query_pipeline, body.question, body.top_k)
+    result = await asyncio.to_thread(query_pipeline, body.question, body.top_k, body.sources)
     guarded = apply_output(result["answer"])
     sources = result.get("sources", [])
     return ChatResponse(
@@ -72,7 +73,7 @@ async def chat_stream(request: Request, body: ChatRequest, _key=Depends(verify_a
 
     async def event_generator():
         try:
-            async for event in stream_query(body.question, body.top_k):
+            async for event in stream_query(body.question, body.top_k, body.sources):
                 if event.get("event") == "done":
                     g = apply_output(event.get("answer", ""))
                     event["answer"] = g["answer"]
