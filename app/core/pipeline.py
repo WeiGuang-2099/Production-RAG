@@ -274,8 +274,23 @@ def retrieve_sources(
 _query_cache: QueryCache | None = None
 
 
+def _make_cache_backend(settings):
+    """Redis when REDIS_URL is set and reachable; in-memory otherwise."""
+    from app.core.cache import InMemoryBackend, RedisBackend
+
+    url = getattr(settings, "REDIS_URL", "")
+    if url:
+        try:
+            backend = RedisBackend(url)
+            logger.info("query_cache_backend: redis")
+            return backend
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("redis_unavailable: %s — falling back to in-memory cache", exc)
+    return InMemoryBackend()
+
+
 def _get_query_cache(settings) -> QueryCache | None:
-    """Return the process-local query cache, or None when caching is off."""
+    """Return the query cache, or None when caching is off."""
     global _query_cache
     if getattr(settings, "CACHE_ENABLED", False) is not True:
         return None
@@ -283,6 +298,7 @@ def _get_query_cache(settings) -> QueryCache | None:
         _query_cache = QueryCache(
             embed_fn=lambda q: get_embedder().embed_query(q),
             threshold=getattr(settings, "CACHE_SIMILARITY_THRESHOLD", 0.95),
+            backend=_make_cache_backend(settings),
         )
     return _query_cache
 

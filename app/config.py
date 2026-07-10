@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     # Cache
     CACHE_ENABLED: bool = False
     CACHE_SIMILARITY_THRESHOLD: float = 0.95
+    REDIS_URL: str = ""   # e.g. redis://localhost:6379/0; empty = in-process cache
 
     # Agent
     AGENT_MAX_REWRITES: int = 2
