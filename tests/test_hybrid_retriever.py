@@ -52,3 +52,41 @@ def test_retrieve_passes_sources_to_both_stores():
 
     assert vs.search.call_args.kwargs["sources"] == ["x"]
     assert bm25.search.call_args.kwargs["sources"] == ["x"]
+
+
+def _doc(text: str) -> Document:
+    return Document(page_content=text)
+
+
+def test_parallel_retrieve_matches_serial_fusion():
+    d1, d2, d3 = _doc("one"), _doc("two"), _doc("three")
+    vs, bm = MagicMock(), MagicMock()
+    vs.search.return_value = [(d1, 0.9), (d2, 0.8)]
+    bm.search.return_value = [(d2, 7.0), (d3, 5.0)]
+
+    result = HybridRetriever(vector_store=vs, bm25_store=bm).retrieve("q", top_k=3)
+
+    expected = rrf_fuse([vs.search.return_value, bm.search.return_value])[:3]
+    assert [(d.page_content, s) for d, s in result] == [(d.page_content, s) for d, s in expected]
+
+
+def test_vector_leg_failure_degrades_to_bm25_only():
+    d3 = _doc("three")
+    vs, bm = MagicMock(), MagicMock()
+    vs.search.side_effect = RuntimeError("qdrant down")
+    bm.search.return_value = [(d3, 5.0)]
+
+    result = HybridRetriever(vector_store=vs, bm25_store=bm).retrieve("q", top_k=3)
+
+    assert [d.page_content for d, _ in result] == ["three"]
+
+
+def test_bm25_leg_failure_degrades_to_vector_only():
+    d1 = _doc("one")
+    vs, bm = MagicMock(), MagicMock()
+    vs.search.return_value = [(d1, 0.9)]
+    bm.search.side_effect = RuntimeError("index corrupt")
+
+    result = HybridRetriever(vector_store=vs, bm25_store=bm).retrieve("q", top_k=3)
+
+    assert [d.page_content for d, _ in result] == ["one"]
