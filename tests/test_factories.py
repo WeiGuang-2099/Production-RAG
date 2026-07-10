@@ -189,3 +189,55 @@ def test_complete_with_model_reports_fallback_model_on_error():
         mock_get.side_effect = lambda m: primary if m == "gpt-4o" else fb
         from app.core.factories import complete_with_model
         assert complete_with_model("p") == ("fallback answer", "gpt-4o-mini")
+
+
+def test_get_vector_store_cached_and_cleared():
+    from unittest.mock import patch
+
+    from app.core.factories import get_vector_store
+
+    clear_caches()
+    with patch("app.retrieval.vector_store.VectorStore") as mock_cls:
+        a = get_vector_store()
+        b = get_vector_store()
+        assert a is b
+        assert mock_cls.call_count == 1
+        clear_caches()
+        get_vector_store()
+        assert mock_cls.call_count == 2
+    clear_caches()
+
+
+def test_get_bm25_store_keyed_by_data_dir(tmp_path):
+    from unittest.mock import patch
+
+    from app.core.factories import get_bm25_store
+
+    clear_caches()
+    with patch("app.core.factories.BM25Store") as mock_cls, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_cls.side_effect = lambda **kw: object()
+        mock_s.return_value.DATA_DIR = str(tmp_path / "a")
+        a1 = get_bm25_store()
+        a2 = get_bm25_store()
+        assert a1 is a2
+        mock_s.return_value.DATA_DIR = str(tmp_path / "b")
+        b = get_bm25_store()
+        assert b is not a1
+    clear_caches()
+
+
+def test_get_graph_store_cached(tmp_path):
+    from unittest.mock import patch
+
+    from app.core.factories import get_graph_store
+
+    clear_caches()
+    with patch("app.core.factories.GraphStore") as mock_cls, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_cls.side_effect = lambda **kw: object()
+        mock_s.return_value.DATA_DIR = str(tmp_path)
+        g1 = get_graph_store()
+        g2 = get_graph_store()
+        assert g1 is g2
+    clear_caches()

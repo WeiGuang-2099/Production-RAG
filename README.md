@@ -7,7 +7,7 @@ Docker deployment.
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-245%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -183,6 +183,14 @@ the highest-value component, roughly doubling its MRR contribution while BM25's
 recall edge nearly vanishes. Paired tables and the honest read in
 [`evaluation/results/`](evaluation/results/README.md).
 
+**Latency** — caching the stores (Qdrant connection, BM25 index, graph) and running the
+retrieval legs in parallel is score-neutral by construction (identical RRF inputs; verified
+per stage on both corpora) and roughly halves retrieval latency across the board — p50
+~1.4s → ~0.64s for the full pipeline, with p95 down up to 2.5x. The per-query BM25 unpickle
+grew with the corpus, so store caching also removes a scaling liability. Repeat questions
+short-circuit through the semantic cache (Redis-backed when `REDIS_URL` is set) in ~0.2s:
+before/after p50/p95 tables in [`evaluation/results/`](evaluation/results/README.md).
+
 End-to-end (RAGAS, grounded vs basic), the result is more interesting than the
 cliche: the grounded prompt **refuses 5/5 unanswerable questions** (basic 0/5),
 yet standard RAGAS faithfulness/relevancy *penalize* that correct refusal — a
@@ -194,7 +202,7 @@ real measurement pitfall for cite-or-refuse systems that the
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 229 tests, all mocked (no services needed)
+pytest -q                                  # 245 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -215,6 +223,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `QUERY_TRANSFORM` | none | none / multi_query / hyde |
 | `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
+| `REDIS_URL` | - | Redis backend for the semantic cache (empty = in-process; falls back on error) |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
@@ -287,8 +296,10 @@ Deliberate trade-offs in the current implementation:
 - **GraphRAG is intentionally lightweight.** Triples come from an LLM/NER pass and entity
   matching is lexical (n-gram + substring). It helps multi-hop questions but is not a full
   community-detection GraphRAG; that is the most natural next iteration.
-- **The cache is process-local.** Semantics match a Redis-backed cache, but state is lost on
-  restart and not shared across replicas.
+- **The semantic cache is Redis-backed when `REDIS_URL` is set** (survives restarts, shared
+  across replicas) and falls back to an in-process cache when Redis is absent or down. The
+  semantic scan is linear over a 256-entry FIFO window — RediSearch KNN is the natural upgrade
+  if the cache grows.
 - **BM25 rebuilds on each ingest.** Fine for this corpus size; a production deployment would use
   an incremental index (e.g. OpenSearch).
 - **Cost figures are estimates** from a static price table, not billed usage.

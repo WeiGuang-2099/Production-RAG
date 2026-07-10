@@ -14,6 +14,7 @@ class GraphStore:
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self.graph = nx.DiGraph()
+        self._signature: tuple[int, int] | None = None
         self._load()
 
     def add_triples(self, triples: list[dict]) -> None:
@@ -50,21 +51,42 @@ class GraphStore:
                     queue.append((pred, d + 1))
         return result
 
+    def _graph_path(self) -> Path:
+        return self._data_dir / "knowledge_graph.gpickle"
+
+    def _graph_signature(self) -> tuple[int, int] | None:
+        """(st_mtime_ns, st_size) of the gpickle; None when absent. Size is
+        included because filesystem mtime granularity can miss writes that
+        land within the same clock tick."""
+        try:
+            st = self._graph_path().stat()
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
+    def refresh_if_stale(self) -> None:
+        """Reload from disk if another process rewrote the graph file."""
+        sig = self._graph_signature()
+        if sig is not None and sig != self._signature:
+            self._load()
+
     def _save(self) -> None:
         try:
-            with open(self._data_dir / "knowledge_graph.gpickle", "wb") as f:
+            with open(self._graph_path(), "wb") as f:
                 pickle.dump(self.graph, f)
+            self._signature = self._graph_signature()
             logger.debug("Knowledge graph saved: %d nodes, %d edges", self.graph.number_of_nodes(), self.graph.number_of_edges())
         except Exception as exc:
             logger.error("Failed to save knowledge graph: %s", exc)
 
     def _load(self) -> None:
-        path = self._data_dir / "knowledge_graph.gpickle"
+        path = self._graph_path()
         if not path.exists():
             return
         try:
             with open(path, "rb") as f:
                 self.graph = pickle.load(f)
+            self._signature = self._graph_signature()
             logger.info("Knowledge graph loaded: %d nodes, %d edges", self.graph.number_of_nodes(), self.graph.number_of_edges())
         except Exception as exc:
             logger.error("Failed to load knowledge graph: %s", exc)

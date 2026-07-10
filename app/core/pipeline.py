@@ -5,6 +5,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,21 +13,31 @@ from langchain_core.documents import Document
 
 from app.config import get_settings
 from app.core.cache import QueryCache
-from app.core.factories import complete_with_model, get_embedder, get_llm, get_reranker
+from app.core.factories import (
+    complete_with_model,
+    get_bm25_store,
+    get_embedder,
+    get_graph_store,
+    get_llm,
+    get_reranker,
+    get_vector_store,
+)
 from app.core.prompts import format_context, select_prompt
 from app.graph.builder import GraphBuilder
-from app.graph.store import GraphStore
 from app.ingestion.chunkers import chunk_documents
 from app.ingestion.loaders import load_documents
 from app.observability.cost import usage_for
 from app.observability.tracing import trace_retrieval
 from app.reranker.reranker import RerankerService
-from app.retrieval.bm25_store import BM25Store
 from app.retrieval.graph_retriever import GraphRetriever
 from app.retrieval.hybrid_retriever import HybridRetriever, rrf_fuse
-from app.retrieval.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
+
+# Outer retrieval pool: per-query hybrid/dense tasks + the graph leg. The
+# hybrid legs themselves run on hybrid_retriever._leg_executor — a separate
+# pool, so an outer task waiting on legs can never deadlock this one.
+_retrieval_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="retrieval")
 
 # ── Ingestion tracking helpers ──────────────────────────
 
@@ -88,7 +99,7 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
 
     # Vector store upsert
     try:
-        vs = VectorStore()
+        vs = get_vector_store()
         vs.upsert(chunks)
         logger.info("vector_upserted: count=%d", len(chunks))
     except Exception as exc:
@@ -97,7 +108,7 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
 
     # BM25 index
     try:
-        bm25 = BM25Store(data_dir=settings.DATA_DIR)
+        bm25 = get_bm25_store()
         bm25.add_documents(chunks)
         logger.info("bm25_indexed: count=%d", len(chunks))
     except Exception as exc:
@@ -110,7 +121,7 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
             llm = get_llm() if settings.GRAPH_EXTRACTOR == "llm" else None
             builder = GraphBuilder(extractor_type=settings.GRAPH_EXTRACTOR, llm=llm)
             triples = builder.extract(chunks)
-            gs = GraphStore(data_dir=settings.DATA_DIR)
+            gs = get_graph_store()
             gs.add_triples(triples)
             logger.info("graph_extracted: triples=%d", len(triples))
         except Exception as exc:
@@ -146,6 +157,11 @@ def _queries_for(question: str, settings) -> list[str]:
         return [question]
 
 
+def _graph_retrieve(question: str) -> list[Document]:
+    gr = GraphRetriever(graph_store=get_graph_store())
+    return gr.retrieve(question, depth=1)
+
+
 def _retrieve_and_rerank(
     question: str, top_k: int, settings, sources: list[str] | None = None
 ) -> list[Document]:
@@ -158,21 +174,35 @@ def _retrieve_and_rerank(
     # additionally fuses BM25 keyword hits via RRF. With QUERY_TRANSFORM,
     # we retrieve for each expanded query and RRF-fuse across them too.
     queries = _queries_for(question, settings)
+
+    # Graph leg is submitted first so it overlaps with the (slower) vector
+    # legs; skipped when scoped — graph docs carry no per-source payload to
+    # filter on.
+    graph_future = None
+    if settings.GRAPH_EXTRACTOR != "none" and not sources:
+        graph_future = _retrieval_executor.submit(_graph_retrieve, question)
+
     hybrid_results: list[tuple[Document, float]] = []
     try:
-        vs = VectorStore()
-        retriever = None
-        if settings.RETRIEVAL_MODE != "dense":
-            bm25 = BM25Store(data_dir=settings.DATA_DIR)
-            retriever = HybridRetriever(vector_store=vs, bm25_store=bm25)
-
+        vs = get_vector_store()
+        if settings.RETRIEVAL_MODE == "dense":
+            futures = [
+                _retrieval_executor.submit(vs.search, q, top_k=top_k, sources=sources)
+                for q in queries
+            ]
+        else:
+            retriever = HybridRetriever(vector_store=vs, bm25_store=get_bm25_store())
+            futures = [
+                _retrieval_executor.submit(retriever.retrieve, q, top_k=top_k, sources=sources)
+                for q in queries
+            ]
         result_lists: list[list[tuple[Document, float]]] = []
-        for q in queries:
-            if settings.RETRIEVAL_MODE == "dense":
-                result_lists.append(vs.search(q, top_k=top_k, sources=sources))
-            else:
-                result_lists.append(retriever.retrieve(q, top_k=top_k, sources=sources))
-
+        for q, future in zip(queries, futures):
+            try:
+                result_lists.append(future.result())
+            except Exception as exc:  # noqa: BLE001 — one bad query must not kill the rest
+                logger.error("retrieval_failed: query=%s error=%s", q[:80], exc)
+                result_lists.append([])
         hybrid_results = (
             result_lists[0] if len(result_lists) == 1 else rrf_fuse(result_lists)[:top_k]
         )
@@ -184,14 +214,10 @@ def _retrieve_and_rerank(
         logger.error("retrieval_failed: %s", exc)
         # Continue with empty results
 
-    # Graph retrieval (optional; skipped when scoped — graph docs carry no
-    # per-source payload to filter on)
     graph_docs: list[Document] = []
-    if settings.GRAPH_EXTRACTOR != "none" and not sources:
+    if graph_future is not None:
         try:
-            gs = GraphStore(data_dir=settings.DATA_DIR)
-            gr = GraphRetriever(graph_store=gs)
-            graph_docs = gr.retrieve(question, depth=1)
+            graph_docs = graph_future.result()
             logger.info("graph_retrieval_complete: hits=%d", len(graph_docs))
         except Exception as exc:
             logger.error("graph_retrieval_failed: %s", exc)
@@ -248,8 +274,23 @@ def retrieve_sources(
 _query_cache: QueryCache | None = None
 
 
+def _make_cache_backend(settings):
+    """Redis when REDIS_URL is set and reachable; in-memory otherwise."""
+    from app.core.cache import InMemoryBackend, RedisBackend
+
+    url = getattr(settings, "REDIS_URL", "")
+    if url:
+        try:
+            backend = RedisBackend(url)
+            logger.info("query_cache_backend: redis")
+            return backend
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("redis_unavailable: %s — falling back to in-memory cache", exc)
+    return InMemoryBackend()
+
+
 def _get_query_cache(settings) -> QueryCache | None:
-    """Return the process-local query cache, or None when caching is off."""
+    """Return the query cache, or None when caching is off."""
     global _query_cache
     if getattr(settings, "CACHE_ENABLED", False) is not True:
         return None
@@ -257,6 +298,7 @@ def _get_query_cache(settings) -> QueryCache | None:
         _query_cache = QueryCache(
             embed_fn=lambda q: get_embedder().embed_query(q),
             threshold=getattr(settings, "CACHE_SIMILARITY_THRESHOLD", 0.95),
+            backend=_make_cache_backend(settings),
         )
     return _query_cache
 
