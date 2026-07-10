@@ -18,18 +18,22 @@ class VectorStore:
         self.url = settings.QDRANT_URL
         self.api_key = settings.QDRANT_API_KEY
         self._store: QdrantVectorStore | None = None
+        self._client: QdrantClient | None = None
+
+    def _get_client(self) -> QdrantClient:
+        # The client stays open — the instance is long-lived once factory-cached.
+        if self._client is None:
+            self._client = QdrantClient(url=self.url, api_key=self.api_key)
+        return self._client
 
     def _ensure_collection(self) -> None:
-        client = QdrantClient(url=self.url, api_key=self.api_key)
-        try:
-            if not client.collection_exists(self.collection_name):
-                dim = len(self.embedder.embed_query("dimension probe"))
-                client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
-                )
-        finally:
-            client.close()
+        client = self._get_client()
+        if not client.collection_exists(self.collection_name):
+            dim = len(self.embedder.embed_query("dimension probe"))
+            client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            )
 
     def _get_store(self) -> QdrantVectorStore:
         if self._store is None:
