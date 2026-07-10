@@ -5,12 +5,17 @@ from langchain_cohere import CohereRerank
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from app.config import get_settings
+from app.graph.store import GraphStore
+from app.retrieval.bm25_store import BM25Store
 
 logger = logging.getLogger(__name__)
 
 _llm_cache: dict[tuple, object] = {}
 _embedder_cache: dict[tuple, object] = {}
 _reranker_cache: dict[tuple, object] = {}
+_vector_store_cache: dict[tuple, object] = {}
+_bm25_store_cache: dict[tuple, object] = {}
+_graph_store_cache: dict[tuple, object] = {}
 
 
 def get_llm(model: str | None = None):
@@ -106,8 +111,44 @@ def get_reranker():
     return instance
 
 
+def get_vector_store():
+    """Cached VectorStore: reuses the Qdrant connection across queries."""
+    # Imported lazily: vector_store.py imports get_embedder from this module.
+    from app.retrieval.vector_store import VectorStore
+
+    settings = get_settings()
+    key = (settings.QDRANT_URL, settings.COLLECTION_NAME)
+    if key not in _vector_store_cache:
+        _vector_store_cache[key] = VectorStore()
+        logger.info("Created vector store: url=%s collection=%s", key[0], key[1])
+    return _vector_store_cache[key]
+
+
+def get_bm25_store():
+    """Cached BM25Store: the index stays in memory instead of unpickling per query."""
+    settings = get_settings()
+    key = (settings.DATA_DIR,)
+    if key not in _bm25_store_cache:
+        _bm25_store_cache[key] = BM25Store(data_dir=settings.DATA_DIR)
+        logger.info("Created BM25 store: data_dir=%s", key[0])
+    return _bm25_store_cache[key]
+
+
+def get_graph_store():
+    """Cached GraphStore: the knowledge graph stays in memory across queries."""
+    settings = get_settings()
+    key = (settings.DATA_DIR,)
+    if key not in _graph_store_cache:
+        _graph_store_cache[key] = GraphStore(data_dir=settings.DATA_DIR)
+        logger.info("Created graph store: data_dir=%s", key[0])
+    return _graph_store_cache[key]
+
+
 def clear_caches() -> None:
     """Clear all factory caches. Useful for testing."""
     _llm_cache.clear()
     _embedder_cache.clear()
     _reranker_cache.clear()
+    _vector_store_cache.clear()
+    _bm25_store_cache.clear()
+    _graph_store_cache.clear()
