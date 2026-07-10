@@ -122,6 +122,14 @@ full-pipeline retrieval p50 dropped ~2x (~1.4s -> ~0.64s) and p95 up to 2.5x.
 Full before/after tables and a Redis cache-hit measurement:
 [`20260710T190025Z_latency.md`](20260710T190025Z_latency.md).
 
+## Keyword backend: local vs OpenSearch
+
+The pluggable keyword store (2026-07-11) puts OpenSearch's standard analyzer
+head-to-head against the local `rank_bm25` tokenizer on both corpora —
+testing whether naive tokenization caused BM25's vanishing recall edge at
+scale. Verdict (it did not) and paired tables:
+[`20260710T231042Z_keyword_backend.md`](20260710T231042Z_keyword_backend.md).
+
 ### Generation at scale: the refusal contract holds
 
 RAGAS (grounded prompt, full 48 questions) rerun against the 30-paper corpus

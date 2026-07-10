@@ -7,7 +7,7 @@ Docker deployment.
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-245%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-261%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -191,6 +191,13 @@ grew with the corpus, so store caching also removes a scaling liability. Repeat 
 short-circuit through the semantic cache (Redis-backed when `REDIS_URL` is set) in ~0.2s:
 before/after p50/p95 tables in [`evaluation/results/`](evaluation/results/README.md).
 
+**Keyword backend** — swapping the local `rank_bm25` store for OpenSearch (standard analyzer)
+tests whether the naive `lower().split()` tokenization caused BM25's vanishing recall edge at
+30-paper scale: it did not — the edge stays gone (+0.007 local vs +0.000 OpenSearch over the
+dense baseline), so the vanishing edge is a property of the corpus at scale, not a tokenization
+artifact. Paired local-vs-OpenSearch tables in
+[`evaluation/results/`](evaluation/results/README.md).
+
 End-to-end (RAGAS, grounded vs basic), the result is more interesting than the
 cliche: the grounded prompt **refuses 5/5 unanswerable questions** (basic 0/5),
 yet standard RAGAS faithfulness/relevancy *penalize* that correct refusal — a
@@ -202,7 +209,7 @@ real measurement pitfall for cite-or-refuse systems that the
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 245 tests, all mocked (no services needed)
+pytest -q                                  # 261 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -302,6 +309,8 @@ Deliberate trade-offs in the current implementation:
   across replicas) and falls back to an in-process cache when Redis is absent or down. The
   semantic scan is linear over a 256-entry FIFO window — RediSearch KNN is the natural upgrade
   if the cache grows.
-- **BM25 rebuilds on each ingest.** Fine for this corpus size; a production deployment would use
-  an incremental index (e.g. OpenSearch).
+- **The keyword store is pluggable: local `rank_bm25` (default, zero-dep) or OpenSearch
+  (`KEYWORD_BACKEND=opensearch`).** The local store rebuilds its index on each ingest — fine at
+  demo scale; the OpenSearch backend indexes incrementally, shares state across processes, and
+  removes the scale ceiling. A dead OpenSearch degrades the keyword leg to vector-only results.
 - **Cost figures are estimates** from a static price table, not billed usage.
