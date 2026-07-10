@@ -8,6 +8,7 @@ land here:
   (deterministic recall@k / MRR / hit@k; no LLM judge, cheap to run).
 - `*_<label>.json` — full RAGAS reports from `run_eval.py`
   (faithfulness / answer_relevancy / context_recall / context_precision).
+- `*_latency.md` — paired before/after latency studies (see below).
 
 ## Retrieval ablation
 
@@ -109,6 +110,17 @@ What 4.6x adversarial scale actually changed:
   round-trip, not local index work. The known per-query BM25 unpickle /
   Qdrant session rebuild is a scaling liability, but at 2.2k chunks it is not
   yet the bottleneck.
+
+## Latency: store caching + parallel retrieval
+
+The per-query BM25 unpickle / Qdrant session rebuild flagged above as a
+scaling liability was removed on 2026-07-10 (store factories keep the Qdrant
+connection, BM25 index, and knowledge graph in memory across queries; the
+vector/BM25/graph legs run in parallel). Score-neutral by construction —
+recall@5 / MRR / hit@5 are identical before and after on both corpora — while
+full-pipeline retrieval p50 dropped ~2x (~1.4s -> ~0.64s) and p95 up to 2.5x.
+Full before/after tables and a Redis cache-hit measurement:
+[`20260710T190025Z_latency.md`](20260710T190025Z_latency.md).
 
 ### Generation at scale: the refusal contract holds
 
