@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 def test_ingest_pipeline(tmp_path):
     with patch("app.core.pipeline.get_embedder") as mock_emb, \
          patch("app.core.pipeline.get_vector_store") as mock_vs_cls, \
-         patch("app.core.pipeline.get_bm25_store") as mock_bm25_cls, \
+         patch("app.core.pipeline.get_keyword_store") as mock_bm25_cls, \
          patch("app.core.pipeline.GraphBuilder") as mock_gb_cls, \
          patch("app.core.pipeline.get_graph_store") as mock_gs_cls, \
          patch("app.core.pipeline.load_documents") as mock_load, \
@@ -52,7 +52,7 @@ def test_query_pipeline():
          patch("app.core.pipeline.get_embedder") as mock_emb, \
          patch("app.core.pipeline.get_reranker") as mock_rr_f, \
          patch("app.core.pipeline.get_vector_store") as mock_vs_cls, \
-         patch("app.core.pipeline.get_bm25_store") as mock_bm25_cls, \
+         patch("app.core.pipeline.get_keyword_store") as mock_bm25_cls, \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.GraphRetriever") as mock_gr_cls, \
          patch("app.core.pipeline.get_graph_store") as mock_gs_cls, \
@@ -90,7 +90,7 @@ def test_query_pipeline_returns_full_source_content():
     with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -114,7 +114,7 @@ def test_query_pipeline_respects_top_k_argument():
     with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -164,7 +164,7 @@ def test_query_pipeline_stores_result_in_cache_on_miss():
          patch("app.core.pipeline.complete_with_model", return_value=("fresh answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -193,7 +193,7 @@ def test_query_pipeline_passes_numbered_context_to_llm():
     with patch("app.core.pipeline.complete_with_model", return_value=("answer [1]", "gpt-4o")) as mock_complete, \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -221,7 +221,7 @@ def test_query_pipeline_stamps_citation_numbers_on_sources():
     with patch("app.core.pipeline.complete_with_model", return_value=("answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -251,7 +251,7 @@ def test_query_pipeline_dense_mode_uses_vector_only():
     with patch("app.core.pipeline.complete_with_model", return_value=("answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store") as mock_vs_cls, \
-         patch("app.core.pipeline.get_bm25_store") as mock_bm25_cls, \
+         patch("app.core.pipeline.get_keyword_store") as mock_bm25_cls, \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -283,7 +283,7 @@ def test_retrieve_sources_returns_citations_without_generation():
     with patch("app.core.pipeline.get_llm") as mock_llm_f, \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -311,7 +311,7 @@ def test_retrieve_sources_multi_query_fuses_per_query_results():
     """multi_query retrieves for the original + each paraphrase and fuses."""
     with patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -348,7 +348,7 @@ def test_retrieve_sources_multi_query_fuses_per_query_results():
 def test_retrieve_sources_hyde_searches_with_hypothetical_document():
     with patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -382,7 +382,7 @@ def test_query_pipeline_reports_token_usage_and_cost():
     with patch("app.core.pipeline.complete_with_model", return_value=("Generated answer", "gpt-4o")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -414,7 +414,7 @@ def test_query_pipeline_attributes_cost_to_model_that_answered():
     with patch("app.core.pipeline.complete_with_model", return_value=("ans", "gpt-4o-mini")), \
          patch("app.core.pipeline.get_reranker"), \
          patch("app.core.pipeline.get_vector_store"), \
-         patch("app.core.pipeline.get_bm25_store"), \
+         patch("app.core.pipeline.get_keyword_store"), \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.RerankerService") as mock_rs_cls, \
          patch("app.core.pipeline.get_settings") as mock_s, \
@@ -539,7 +539,7 @@ def test_retrieve_and_rerank_parallel_matches_serial_semantics():
     d1, d2 = Doc(page_content="v1"), Doc(page_content="g1")
 
     with patch("app.core.pipeline.get_vector_store") as mock_vs_f, \
-         patch("app.core.pipeline.get_bm25_store") as mock_bm_f, \
+         patch("app.core.pipeline.get_keyword_store") as mock_bm_f, \
          patch("app.core.pipeline.get_graph_store") as mock_gs_f, \
          patch("app.core.pipeline.HybridRetriever") as mock_hr_cls, \
          patch("app.core.pipeline.GraphRetriever") as mock_gr_cls, \

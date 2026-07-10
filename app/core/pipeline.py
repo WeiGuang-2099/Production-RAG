@@ -15,9 +15,9 @@ from app.config import get_settings
 from app.core.cache import QueryCache
 from app.core.factories import (
     complete_with_model,
-    get_bm25_store,
     get_embedder,
     get_graph_store,
+    get_keyword_store,
     get_llm,
     get_reranker,
     get_vector_store,
@@ -106,14 +106,14 @@ def ingest_pipeline(source: str, force: bool = False) -> dict:
         logger.error("vector_upsert_failed: %s", exc)
         raise
 
-    # BM25 index
+    # Keyword index
     try:
-        bm25 = get_bm25_store()
-        bm25.add_documents(chunks)
-        logger.info("bm25_indexed: count=%d", len(chunks))
+        keyword_store = get_keyword_store()
+        keyword_store.add_documents(chunks)
+        logger.info("keyword_indexed: backend=%s count=%d", settings.KEYWORD_BACKEND, len(chunks))
     except Exception as exc:
-        logger.error("bm25_index_failed: %s", exc)
-        # Non-critical: continue without BM25
+        logger.error("keyword_index_failed: %s", exc)
+        # Non-critical: continue without the keyword index
 
     # Graph extraction (optional)
     if settings.GRAPH_EXTRACTOR != "none":
@@ -191,7 +191,7 @@ def _retrieve_and_rerank(
                 for q in queries
             ]
         else:
-            retriever = HybridRetriever(vector_store=vs, bm25_store=get_bm25_store())
+            retriever = HybridRetriever(vector_store=vs, bm25_store=get_keyword_store())
             futures = [
                 _retrieval_executor.submit(retriever.retrieve, q, top_k=top_k, sources=sources)
                 for q in queries
