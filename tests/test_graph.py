@@ -92,3 +92,17 @@ def test_graph_store_persistence(tmp_path):
     store2 = GraphStore(data_dir=str(tmp_path))
     neighbors = store2.get_neighbors("A", depth=1)
     assert any(n == "B" for n, _ in neighbors)
+
+
+def test_refresh_if_stale_picks_up_external_write(tmp_path):
+    writer = GraphStore(data_dir=str(tmp_path))
+    writer.add_triples([{"head": "A", "relation": "r", "tail": "B"}])
+
+    reader = GraphStore(data_dir=str(tmp_path))
+    assert "A" in reader.graph
+
+    other = GraphStore(data_dir=str(tmp_path))
+    other.add_triples([{"head": "C", "relation": "r", "tail": "D"}])
+
+    reader.refresh_if_stale()
+    assert "C" in reader.graph

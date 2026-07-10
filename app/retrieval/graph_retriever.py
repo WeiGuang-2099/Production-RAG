@@ -31,6 +31,9 @@ class GraphRetriever:
         self.graph_store = graph_store
 
     def retrieve(self, query: str, depth: int = 1) -> list[Document]:
+        # Refresh at entry: _find_entity reads graph_store.graph directly, so
+        # the staleness check cannot live inside get_neighbors.
+        self.graph_store.refresh_if_stale()
         matched_entity = self._find_entity(query)
         if not matched_entity:
             return []
