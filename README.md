@@ -76,7 +76,7 @@ flowchart LR
 ```
 
 - **Ingest**: Loaders (PDF/MD/Web) → token-aware chunker → embedder → Qdrant + BM25 + knowledge graph
-- **Query**: cache → query transform → vector+BM25 hybrid (RRF) → GraphRAG expand → rerank → grounded LLM generation
+- **Query**: cache → query transform → vector + keyword hybrid (RRF; pluggable keyword store: local BM25 or OpenSearch) → GraphRAG expand → rerank → grounded LLM generation
 - **Config**: all behavior via `.env`, provider-agnostic factories
 - **Observability**: LangSmith tracing + per-query token/cost logging
 
@@ -224,6 +224,8 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
 | `REDIS_URL` | - | Redis backend for the semantic cache (empty = in-process; falls back on error) |
+| `KEYWORD_BACKEND` | local | keyword store: local (rank_bm25, zero-dep) / opensearch (incremental, shared) |
+| `OPENSEARCH_URL` / `OPENSEARCH_INDEX` | localhost:9200 / rag_chunks | OpenSearch endpoint and index name |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
@@ -286,7 +288,7 @@ the `\.venv\Scripts\python.exe` interpreter path.)
 
 ## Tech stack
 
-Python 3.11+, FastAPI, LangChain 0.3+, Qdrant (vectors), rank_bm25 (keyword), NetworkX (graph),
+Python 3.11+, FastAPI, LangChain 0.3+, Qdrant (vectors), rank_bm25 / OpenSearch (keyword, pluggable), NetworkX (graph),
 Cohere Rerank, tiktoken (token/cost accounting), RAGAS (eval), LangSmith (tracing), Docker Compose.
 
 ## Design notes & limitations
