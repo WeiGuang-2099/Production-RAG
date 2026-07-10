@@ -5,9 +5,15 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       qdrant:
         condition: service_healthy
+      # service_started, not service_healthy: the API must start fine
+      # without Redis (the cache falls back to in-memory)
+      redis:
+        condition: service_started
     volumes:
       - rag_data:/app/data
     restart: unless-stopped
@@ -17,6 +23,17 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   qdrant:
     image: qdrant/qdrant:latest

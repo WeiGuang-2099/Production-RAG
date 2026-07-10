@@ -215,6 +215,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `QUERY_TRANSFORM` | none | none / multi_query / hyde |
 | `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
+| `REDIS_URL` | - | Redis backend for the semantic cache (empty = in-process; falls back on error) |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
@@ -287,8 +288,10 @@ Deliberate trade-offs in the current implementation:
 - **GraphRAG is intentionally lightweight.** Triples come from an LLM/NER pass and entity
   matching is lexical (n-gram + substring). It helps multi-hop questions but is not a full
   community-detection GraphRAG; that is the most natural next iteration.
-- **The cache is process-local.** Semantics match a Redis-backed cache, but state is lost on
-  restart and not shared across replicas.
+- **The semantic cache is Redis-backed when `REDIS_URL` is set** (survives restarts, shared
+  across replicas) and falls back to an in-process cache when Redis is absent or down. The
+  semantic scan is linear over a 256-entry FIFO window — RediSearch KNN is the natural upgrade
+  if the cache grows.
 - **BM25 rebuilds on each ingest.** Fine for this corpus size; a production deployment would use
   an incremental index (e.g. OpenSearch).
 - **Cost figures are estimates** from a static price table, not billed usage.
