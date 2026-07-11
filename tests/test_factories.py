@@ -208,22 +208,71 @@ def test_get_vector_store_cached_and_cleared():
     clear_caches()
 
 
-def test_get_bm25_store_keyed_by_data_dir(tmp_path):
+def test_get_keyword_store_local_keyed_by_data_dir(tmp_path):
     from unittest.mock import patch
 
-    from app.core.factories import get_bm25_store
+    from app.core.factories import get_keyword_store
 
     clear_caches()
     with patch("app.core.factories.BM25Store") as mock_cls, \
          patch("app.core.factories.get_settings") as mock_s:
         mock_cls.side_effect = lambda **kw: object()
+        mock_s.return_value.KEYWORD_BACKEND = "local"
         mock_s.return_value.DATA_DIR = str(tmp_path / "a")
-        a1 = get_bm25_store()
-        a2 = get_bm25_store()
+        a1 = get_keyword_store()
+        a2 = get_keyword_store()
         assert a1 is a2
         mock_s.return_value.DATA_DIR = str(tmp_path / "b")
-        b = get_bm25_store()
+        b = get_keyword_store()
         assert b is not a1
+    clear_caches()
+
+
+def test_get_keyword_store_dispatches_to_opensearch():
+    from unittest.mock import patch
+
+    from app.core.factories import get_keyword_store
+
+    clear_caches()
+    with patch("app.core.factories.OpenSearchStore") as mock_os_cls, \
+         patch("app.core.factories.BM25Store") as mock_bm_cls, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_os_cls.side_effect = lambda **kw: object()
+        mock_s.return_value.KEYWORD_BACKEND = "opensearch"
+        mock_s.return_value.OPENSEARCH_URL = "http://test:9200"
+        mock_s.return_value.OPENSEARCH_INDEX = "idx"
+        s1 = get_keyword_store()
+        s2 = get_keyword_store()
+        assert s1 is s2
+        mock_os_cls.assert_called_once_with(url="http://test:9200", index_name="idx")
+        mock_bm_cls.assert_not_called()
+        clear_caches()
+        get_keyword_store()
+        assert mock_os_cls.call_count == 2  # clear_caches() resets the store cache
+    clear_caches()
+
+
+def test_get_keyword_store_backends_cached_separately(tmp_path):
+    from unittest.mock import patch
+
+    from app.core.factories import get_keyword_store
+
+    clear_caches()
+    with patch("app.core.factories.OpenSearchStore") as mock_os_cls, \
+         patch("app.core.factories.BM25Store") as mock_bm_cls, \
+         patch("app.core.factories.get_settings") as mock_s:
+        mock_os_cls.side_effect = lambda **kw: object()
+        mock_bm_cls.side_effect = lambda **kw: object()
+        mock_s.return_value.KEYWORD_BACKEND = "local"
+        mock_s.return_value.DATA_DIR = str(tmp_path)
+        local = get_keyword_store()
+        mock_s.return_value.KEYWORD_BACKEND = "opensearch"
+        mock_s.return_value.OPENSEARCH_URL = "http://test:9200"
+        mock_s.return_value.OPENSEARCH_INDEX = "idx"
+        remote = get_keyword_store()
+        assert local is not remote
+        mock_s.return_value.KEYWORD_BACKEND = "local"
+        assert get_keyword_store() is local
     clear_caches()
 
 

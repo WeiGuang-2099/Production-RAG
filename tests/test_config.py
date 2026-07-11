@@ -178,3 +178,20 @@ def test_guardrails_enabled_default():
 def test_mcp_allow_ingest_default():
     s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
     assert s.MCP_ALLOW_INGEST is True
+
+
+def test_keyword_backend_defaults():
+    s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+    assert s.KEYWORD_BACKEND == "local"
+    assert s.OPENSEARCH_URL == "http://localhost:9200"
+    assert s.OPENSEARCH_INDEX == "rag_chunks"
+
+
+def test_invalid_keyword_backend():
+    with pytest.raises(ValueError, match="KEYWORD_BACKEND must be"):
+        Settings(
+            KEYWORD_BACKEND="elasticsearch",
+            LLM_API_KEY="t",
+            EMBEDDING_API_KEY="t",
+            COHERE_API_KEY="t",
+        )

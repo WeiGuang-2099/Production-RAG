@@ -89,6 +89,14 @@ async def health_ready():
     except Exception as exc:
         checks["graph"] = f"failed: {exc}"
 
+    # Check OpenSearch (informational; only when it is the active keyword backend)
+    if get_settings().KEYWORD_BACKEND == "opensearch":
+        try:
+            from app.core.factories import get_keyword_store
+            checks["opensearch"] = "ok" if get_keyword_store().ping() else "failed: ping"
+        except Exception as exc:
+            checks["opensearch"] = f"failed: {exc}"
+
     if any("failed" in str(v) for k, v in checks.items() if k == "qdrant"):
         return JSONResponse(status_code=503, content={"status": "not_ready", "checks": checks})
 

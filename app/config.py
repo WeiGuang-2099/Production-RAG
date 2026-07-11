@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     TOP_K: int = 5
     RERANK_TOP_K: int = 5
 
+    # Keyword backend
+    KEYWORD_BACKEND: str = "local"                   # local (rank_bm25) | opensearch
+    OPENSEARCH_URL: str = "http://localhost:9200"
+    OPENSEARCH_INDEX: str = "rag_chunks"             # scale corpus: rag_chunks_scale30
+
     # Cache
     CACHE_ENABLED: bool = False
     CACHE_SIMILARITY_THRESHOLD: float = 0.95
@@ -129,6 +134,13 @@ class Settings(BaseSettings):
     def validate_query_transform(cls, v: str) -> str:
         if v not in ("none", "multi_query", "hyde"):
             raise ValueError(f"QUERY_TRANSFORM must be 'none', 'multi_query', or 'hyde', got '{v}'")
+        return v
+
+    @field_validator("KEYWORD_BACKEND")
+    @classmethod
+    def validate_keyword_backend(cls, v: str) -> str:
+        if v not in ("local", "opensearch"):
+            raise ValueError(f"KEYWORD_BACKEND must be 'local' or 'opensearch', got '{v}'")
         return v
 
     @field_validator("CACHE_SIMILARITY_THRESHOLD")

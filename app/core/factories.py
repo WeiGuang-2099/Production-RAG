@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from app.config import get_settings
 from app.graph.store import GraphStore
 from app.retrieval.bm25_store import BM25Store
+from app.retrieval.opensearch_store import OpenSearchStore
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ _llm_cache: dict[tuple, object] = {}
 _embedder_cache: dict[tuple, object] = {}
 _reranker_cache: dict[tuple, object] = {}
 _vector_store_cache: dict[tuple, object] = {}
-_bm25_store_cache: dict[tuple, object] = {}
+_keyword_store_cache: dict[tuple, object] = {}
 _graph_store_cache: dict[tuple, object] = {}
 
 
@@ -124,14 +125,22 @@ def get_vector_store():
     return _vector_store_cache[key]
 
 
-def get_bm25_store():
-    """Cached BM25Store: the index stays in memory instead of unpickling per query."""
+def get_keyword_store():
+    """Cached keyword store: local BM25 (default) or OpenSearch, per KEYWORD_BACKEND."""
     settings = get_settings()
-    key = (settings.DATA_DIR,)
-    if key not in _bm25_store_cache:
-        _bm25_store_cache[key] = BM25Store(data_dir=settings.DATA_DIR)
-        logger.info("Created BM25 store: data_dir=%s", key[0])
-    return _bm25_store_cache[key]
+    if settings.KEYWORD_BACKEND == "opensearch":
+        key = ("opensearch", settings.OPENSEARCH_URL, settings.OPENSEARCH_INDEX)
+        if key not in _keyword_store_cache:
+            _keyword_store_cache[key] = OpenSearchStore(
+                url=settings.OPENSEARCH_URL, index_name=settings.OPENSEARCH_INDEX
+            )
+            logger.info("Created keyword store: backend=opensearch url=%s index=%s", key[1], key[2])
+        return _keyword_store_cache[key]
+    key = ("local", settings.DATA_DIR)
+    if key not in _keyword_store_cache:
+        _keyword_store_cache[key] = BM25Store(data_dir=settings.DATA_DIR)
+        logger.info("Created keyword store: backend=local data_dir=%s", key[1])
+    return _keyword_store_cache[key]
 
 
 def get_graph_store():
@@ -150,5 +159,5 @@ def clear_caches() -> None:
     _embedder_cache.clear()
     _reranker_cache.clear()
     _vector_store_cache.clear()
-    _bm25_store_cache.clear()
+    _keyword_store_cache.clear()
     _graph_store_cache.clear()
