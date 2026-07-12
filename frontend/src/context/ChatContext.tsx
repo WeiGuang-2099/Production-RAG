@@ -15,7 +15,7 @@ type ChatContextValue = ReturnType<typeof useChat> & {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const chat = useChat({ persistKey: "rag-chat" });
+  const chat = useChat();
   const [agent, setAgent] = useState(false);
   const [stream, setStream] = useState(true);
   const [topK, setTopK] = useState(5);

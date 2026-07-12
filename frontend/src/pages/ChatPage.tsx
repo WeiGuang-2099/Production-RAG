@@ -6,7 +6,7 @@ import { useChatContext } from "../context/ChatContext";
 import { useDocuments } from "../hooks/useDocuments";
 
 export function ChatPage() {
-  const { messages, busy, send, clear, agent, stream, topK, setAgent, setStream, setTopK,
+  const { messages, busy, send, newSession, agent, stream, topK, setAgent, setStream, setTopK,
     scopeSources, setScopeSources } = useChatContext();
   const { docs, refresh } = useDocuments();
   useEffect(() => { refresh(); }, [refresh]);
@@ -31,7 +31,7 @@ export function ChatPage() {
         onAgent={setAgent}
         onStream={setStream}
         onTopK={setTopK}
-        onClear={clear}
+        onClear={newSession}
         onSend={(q) => send(q, { agent, stream, topK, sources: scopeSources })}
       />
     </div>

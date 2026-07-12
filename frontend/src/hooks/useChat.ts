@@ -4,6 +4,10 @@ import { streamNdjson } from "../api/stream";
 import type { ChatResult, Guardrails, SourceItem, Usage } from "../api/types";
 import { useSettings } from "../context/SettingsContext";
 import { useToast } from "../context/ToastContext";
+import {
+  addSession, loadStore, removeSession, saveStore, upsertActiveMessages,
+  type SessionStore,
+} from "../state/sessions";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -25,47 +29,42 @@ export interface SendOpts {
   sources?: string[];
 }
 
-const MAX_PERSISTED = 50;
+function activeMessages(store: SessionStore): ChatMessage[] {
+  return store.sessions.find((s) => s.id === store.activeId)?.messages ?? [];
+}
 
-export function useChat(options: { persistKey?: string } = {}) {
-  const { persistKey } = options;
+export function useChat() {
   const { client } = useSettings();
   const { toast } = useToast();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    if (!persistKey) return [];
-    try {
-      const raw = localStorage.getItem(persistKey);
-      return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [store, setStore] = useState<SessionStore>(() => loadStore());
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!persistKey) return;
-    try {
-      // An empty thread removes the key so "New chat" leaves no residue
-      if (messages.length === 0) {
-        localStorage.removeItem(persistKey);
-      } else {
-        localStorage.setItem(persistKey, JSON.stringify(messages.slice(-MAX_PERSISTED)));
-      }
-    } catch {
-      /* ignore quota/serialization errors; keep in-memory state */
-    }
-  }, [messages, persistKey]);
+    saveStore(store);
+  }, [store]);
 
-  const clear = useCallback(() => {
-    setMessages([]);
+  const messages = activeMessages(store);
+
+  const newSession = useCallback(() => {
+    // No-op when the active session is still empty - never spawn blanks.
+    setStore((st) => (activeMessages(st).length === 0 ? st : addSession(st)));
+  }, []);
+
+  const switchSession = useCallback((id: string) => {
+    setStore((st) => (st.sessions.some((s) => s.id === id) ? { ...st, activeId: id } : st));
+  }, []);
+
+  const deleteSession = useCallback((id: string) => {
+    setStore((st) => removeSession(st, id));
   }, []);
 
   const patchLast = useCallback((patch: Partial<ChatMessage> | ((m: ChatMessage) => ChatMessage)) => {
-    setMessages((ms) => {
-      const copy = ms.slice();
-      const i = copy.length - 1;
-      copy[i] = typeof patch === "function" ? patch(copy[i]) : { ...copy[i], ...patch };
-      return copy;
+    setStore((st) => {
+      const ms = activeMessages(st).slice();
+      const i = ms.length - 1;
+      if (i < 0) return st;
+      ms[i] = typeof patch === "function" ? patch(ms[i]) : { ...ms[i], ...patch };
+      return upsertActiveMessages(st, ms);
     });
   }, []);
 
@@ -73,7 +72,13 @@ export function useChat(options: { persistKey?: string } = {}) {
     async (question: string, opts: SendOpts) => {
       if (!question.trim() || busy) return;
       setBusy(true);
-      setMessages((ms) => [...ms, { role: "user", content: question }, { role: "assistant", content: "" }]);
+      setStore((st) =>
+        upsertActiveMessages(st, [
+          ...activeMessages(st),
+          { role: "user", content: question },
+          { role: "assistant", content: "" },
+        ]),
+      );
       const history = messages
         .filter((m) => m.content && !m.content.startsWith("Error:"))
         .slice(-10)
@@ -134,5 +139,16 @@ export function useChat(options: { persistKey?: string } = {}) {
     [busy, client, messages, patchLast, toast],
   );
 
-  return { messages, busy, send, clear };
+  return {
+    sessions: store.sessions,
+    activeId: store.activeId,
+    messages,
+    busy,
+    send,
+    newSession,
+    switchSession,
+    deleteSession,
+    // Transitional alias, removed in the chat-column task:
+    clear: newSession,
+  };
 }
