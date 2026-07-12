@@ -1,6 +1,7 @@
 """LangGraph wiring for the Corrective-RAG agent."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -10,6 +11,7 @@ from langgraph.graph import END, StateGraph
 from app.agent import nodes
 from app.agent.state import AgentState
 from app.config import get_settings
+from app.core.condense import CondenseResult, attach_condense, condense_question
 
 logger = logging.getLogger(__name__)
 
@@ -60,27 +62,50 @@ def _get_compiled():
     return _compiled
 
 
-def run_agent(question: str, top_k: int | None = None, sources: list[str] | None = None) -> dict:
+def run_agent(
+    question: str,
+    top_k: int | None = None,
+    sources: list[str] | None = None,
+    history: list[dict] | None = None,
+) -> dict:
     settings = get_settings()
     start = time.time()
+    cq = (
+        condense_question(question, history)
+        if history
+        else CondenseResult(question=question, applied=False)
+    )
+    if cq.applied:
+        logger.info("condensed: %s -> %s", question[:80], cq.question[:80])
+        question = cq.question
     init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K,
             "attempts": 0, "scope_sources": sources or []}
     final = _get_compiled().invoke(init)
-    return {
+    return attach_condense({
         "answer": final.get("answer", ""),
         "sources": final.get("sources", []),
         "latency_ms": (time.time() - start) * 1000,
         "usage": final.get("usage", {}),
         "route": final.get("route", ""),
         "attempts": final.get("attempts", 0),
-    }
+    }, cq)
 
 
 async def stream_agent(
-    question: str, top_k: int | None = None, sources: list[str] | None = None
+    question: str,
+    top_k: int | None = None,
+    sources: list[str] | None = None,
+    history: list[dict] | None = None,
 ) -> AsyncIterator[dict]:
     settings = get_settings()
     start = time.time()
+    if history:
+        cq = await asyncio.to_thread(condense_question, question, history)
+    else:
+        cq = CondenseResult(question=question, applied=False)
+    if cq.applied:
+        yield {"event": "condensed", "condensed_question": cq.question}
+        question = cq.question
     init = {"question": question, "query": question, "top_k": top_k or settings.TOP_K,
             "attempts": 0, "scope_sources": sources or []}
     final: dict = {}
@@ -89,11 +114,11 @@ async def stream_agent(
             final.update(partial or {})
             yield {"event": "step", "node": node_name}
     yield {"event": "sources", "sources": final.get("sources", [])}
-    yield {
-        "event": "done",
+    done = attach_condense({
         "answer": final.get("answer", ""),
         "usage": final.get("usage", {}),
         "route": final.get("route", ""),
         "attempts": final.get("attempts", 0),
         "latency_ms": (time.time() - start) * 1000,
-    }
+    }, cq)
+    yield {"event": "done", **done}
