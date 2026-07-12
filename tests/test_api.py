@@ -35,7 +35,7 @@ def test_chat_passes_top_k_to_pipeline(client):
         }
         response = client.post("/chat", json={"question": "What is AI?", "top_k": 7})
         assert response.status_code == 200
-        mock_query.assert_called_once_with("What is AI?", 7, None)
+        mock_query.assert_called_once_with("What is AI?", 7, None, [])
 
 
 def test_ingest_rejects_sibling_prefix_path(client, tmp_path):
@@ -89,7 +89,7 @@ def test_chat_endpoint_returns_usage(client):
 def test_chat_stream_endpoint_emits_token_events(client):
     import json as _json
 
-    async def fake_stream(question, top_k=None, sources=None):
+    async def fake_stream(question, top_k=None, sources=None, history=None):
         yield {"event": "sources", "sources": []}
         yield {"event": "token", "token": "Hi"}
         yield {"event": "done", "answer": "Hi", "usage": {}}
@@ -139,4 +139,55 @@ def test_chat_forwards_sources(client):
         mock_query.return_value = {"answer": "ok", "sources": [], "latency_ms": 1.0}
         response = client.post("/chat", json={"question": "q", "sources": ["only.pdf"]})
         assert response.status_code == 200
-        mock_query.assert_called_once_with("q", 5, ["only.pdf"])
+        mock_query.assert_called_once_with("q", 5, ["only.pdf"], [])
+
+
+def test_chat_rejects_bad_history_role(client):
+    resp = client.post(
+        "/chat", json={"question": "q", "history": [{"role": "system", "content": "x"}]}
+    )
+    assert resp.status_code == 422
+
+
+def test_chat_forwards_history_and_returns_condensed(client):
+    with patch("app.api.routes_chat.query_pipeline") as mock_query:
+        mock_query.return_value = {"answer": "ok", "sources": [], "latency_ms": 1.0,
+                                   "condensed_question": "What is LoRA's cost?"}
+        resp = client.post("/chat", json={
+            "question": "its cost?",
+            "history": [{"role": "user", "content": "What is LoRA?"},
+                        {"role": "assistant", "content": "LoRA is ... [1]"}],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["condensed_question"] == "What is LoRA's cost?"
+        mock_query.assert_called_once_with(
+            "its cost?", 5, None,
+            [{"role": "user", "content": "What is LoRA?"},
+             {"role": "assistant", "content": "LoRA is ... [1]"}],
+        )
+
+
+def test_chat_condensed_question_null_for_single_turn(client):
+    with patch("app.api.routes_chat.query_pipeline") as mock_query:
+        mock_query.return_value = {"answer": "ok", "sources": [], "latency_ms": 1.0,
+                                   "condensed_question": None}
+        resp = client.post("/chat", json={"question": "q"})
+        assert resp.status_code == 200
+        assert resp.json()["condensed_question"] is None
+
+
+def test_chat_stream_forwards_condensed_event(client):
+    import json as _json
+
+    async def fake_stream(question, top_k=None, sources=None, history=None):
+        yield {"event": "condensed", "condensed_question": "standalone?"}
+        yield {"event": "sources", "sources": []}
+        yield {"event": "done", "answer": "A", "usage": {}}
+
+    with patch("app.api.routes_chat.stream_query", fake_stream):
+        resp = client.post("/chat/stream", json={
+            "question": "f?", "history": [{"role": "user", "content": "x"}]
+        })
+        events = [_json.loads(ln) for ln in resp.text.strip().split("\n") if ln]
+        assert [e["event"] for e in events] == ["condensed", "sources", "done"]
+        assert events[0]["condensed_question"] == "standalone?"

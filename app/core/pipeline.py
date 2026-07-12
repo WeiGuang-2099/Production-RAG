@@ -13,6 +13,7 @@ from langchain_core.documents import Document
 
 from app.config import get_settings
 from app.core.cache import QueryCache
+from app.core.condense import CondenseResult, attach_condense, condense_question
 from app.core.factories import (
     complete_with_model,
     get_embedder,
@@ -304,13 +305,28 @@ def _get_query_cache(settings) -> QueryCache | None:
 
 
 def query_pipeline(
-    question: str, top_k: int | None = None, sources: list[str] | None = None
+    question: str,
+    top_k: int | None = None,
+    sources: list[str] | None = None,
+    history: list[dict] | None = None,
 ) -> dict:
     settings = get_settings()
     if top_k is None:
         top_k = settings.TOP_K
     start = time.time()
     logger.info("query_start: question=%s", question[:100])
+
+    # Condense BEFORE the cache lookup so the cache keys on the standalone
+    # question. A condensed question is conversation-independent by
+    # construction, so cross-conversation hits on it are correct.
+    cq = (
+        condense_question(question, history)
+        if history
+        else CondenseResult(question=question, applied=False)
+    )
+    if cq.applied:
+        logger.info("condensed: %s -> %s", question[:80], cq.question[:80])
+        question = cq.question
 
     # Scoped queries bypass the cache: cache keys are question-only, so a
     # cached unscoped answer would leak out-of-scope sources (and vice versa).
@@ -319,7 +335,7 @@ def query_pipeline(
         cached = cache.get(question)
         if cached is not None:
             logger.info("cache_hit: question=%s", question[:100])
-            return {**cached, "cached": True}
+            return attach_condense({**cached, "cached": True}, cq)
 
     reranked = _retrieve_and_rerank(question, top_k, settings, sources=sources)
 
@@ -360,23 +376,35 @@ def query_pipeline(
     }
     if cache is not None and not sources:
         cache.put(question, result)
-    return result
+    return attach_condense(result, cq)
 
 
 async def stream_query(
-    question: str, top_k: int | None = None, sources: list[str] | None = None
+    question: str,
+    top_k: int | None = None,
+    sources: list[str] | None = None,
+    history: list[dict] | None = None,
 ) -> AsyncIterator[dict]:
     """Stream a grounded answer token-by-token.
 
     Retrieval is synchronous (and not streamable), so it runs in a thread and
     is emitted as a single ``sources`` event; generation is then streamed from
     the LLM one token at a time, finishing with a ``done`` event that carries
-    the assembled answer and token/cost usage.
+    the assembled answer and token/cost usage. When a history-condensed
+    rewrite ran, a ``condensed`` event precedes ``sources``.
     """
     settings = get_settings()
     if top_k is None:
         top_k = settings.TOP_K
     start = time.time()
+
+    if history:
+        cq = await asyncio.to_thread(condense_question, question, history)
+    else:
+        cq = CondenseResult(question=question, applied=False)
+    if cq.applied:
+        yield {"event": "condensed", "condensed_question": cq.question}
+        question = cq.question
 
     reranked = await asyncio.to_thread(_retrieve_and_rerank, question, top_k, settings, sources)
     retrieval_ms = (time.time() - start) * 1000
@@ -401,4 +429,5 @@ async def stream_query(
     usage = usage_for(prompt_text, answer, str(settings.LLM_MODEL))
     total_ms = (time.time() - start) * 1000
     logger.info("stream_complete: latency_ms=%.1f cost_usd=%.6f", total_ms, usage["cost_usd"])
-    yield {"event": "done", "answer": answer, "usage": usage, "latency_ms": total_ms}
+    done = attach_condense({"answer": answer, "usage": usage, "latency_ms": total_ms}, cq)
+    yield {"event": "done", **done}

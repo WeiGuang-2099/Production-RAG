@@ -195,3 +195,30 @@ def test_invalid_keyword_backend():
             EMBEDDING_API_KEY="t",
             COHERE_API_KEY="t",
         )
+
+
+def test_chat_history_defaults():
+    s = Settings(LLM_API_KEY="t", EMBEDDING_API_KEY="t", COHERE_API_KEY="t")
+    assert s.HISTORY_CONDENSE_ENABLED is True
+    assert s.CHAT_HISTORY_MAX_TURNS == 10
+    assert s.CHAT_HISTORY_MAX_TURN_CHARS == 2000
+
+
+def test_invalid_chat_history_max_turns():
+    with pytest.raises(ValueError, match="CHAT_HISTORY_MAX_TURNS must be"):
+        Settings(
+            CHAT_HISTORY_MAX_TURNS=-1,
+            LLM_API_KEY="t",
+            EMBEDDING_API_KEY="t",
+            COHERE_API_KEY="t",
+        )
+
+
+def test_invalid_chat_history_max_turn_chars():
+    with pytest.raises(ValueError, match="CHAT_HISTORY_MAX_TURN_CHARS must be"):
+        Settings(
+            CHAT_HISTORY_MAX_TURN_CHARS=0,
+            LLM_API_KEY="t",
+            EMBEDDING_API_KEY="t",
+            COHERE_API_KEY="t",
+        )

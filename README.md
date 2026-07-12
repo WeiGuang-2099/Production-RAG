@@ -7,7 +7,7 @@ Docker deployment.
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-261%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-293%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -76,7 +76,7 @@ flowchart LR
 ```
 
 - **Ingest**: Loaders (PDF/MD/Web) → token-aware chunker → embedder → Qdrant + BM25 + knowledge graph
-- **Query**: cache → query transform → vector + keyword hybrid (RRF; pluggable keyword store: local BM25 or OpenSearch) → GraphRAG expand → rerank → grounded LLM generation
+- **Query**: condense follow-up (history-aware, fast model) → cache → query transform → vector + keyword hybrid (RRF; pluggable keyword store: local BM25 or OpenSearch) → GraphRAG expand → rerank → grounded LLM generation
 - **Config**: all behavior via `.env`, provider-agnostic factories
 - **Observability**: LangSmith tracing + per-query token/cost logging
 
@@ -198,6 +198,14 @@ dense baseline), so the vanishing edge is a property of the corpus at scale, not
 artifact. Paired local-vs-OpenSearch tables in
 [`evaluation/results/`](evaluation/results/README.md).
 
+**Multi-turn** — follow-up questions with pronouns ("what about its training cost?") used to
+retrieve against the raw text and miss. A fast-model condense-question step now rewrites them
+into standalone questions before the cache and retrieval — generation never sees the history, so
+the cite-or-refuse contract stays single-turn. Measured on 18 hand-written follow-ups:
+recall@5 0.778 raw -> 1.000 condensed (hand-written oracle 1.000), 846 ms p50 added
+per follow-up turn. Three-condition table in
+[`evaluation/results/`](evaluation/results/README.md).
+
 End-to-end (RAGAS, grounded vs basic), the result is more interesting than the
 cliche: the grounded prompt **refuses 5/5 unanswerable questions** (basic 0/5),
 yet standard RAGAS faithfulness/relevancy *penalize* that correct refusal — a
@@ -209,7 +217,7 @@ real measurement pitfall for cite-or-refuse systems that the
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 261 tests, all mocked (no services needed)
+pytest -q                                  # 293 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -233,6 +241,8 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `REDIS_URL` | - | Redis backend for the semantic cache (empty = in-process; falls back on error) |
 | `KEYWORD_BACKEND` | local | keyword store: local (rank_bm25, zero-dep) / opensearch (incremental, shared) |
 | `OPENSEARCH_URL` / `OPENSEARCH_INDEX` | localhost:9200 / rag_chunks | OpenSearch endpoint and index name |
+| `HISTORY_CONDENSE_ENABLED` | true | rewrite follow-ups into standalone questions using chat history (fast model) |
+| `CHAT_HISTORY_MAX_TURNS` / `CHAT_HISTORY_MAX_TURN_CHARS` | 10 / 2000 | server-side history trimming caps |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
 | `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
@@ -244,9 +254,9 @@ All via `.env` (see `.env.example` for the full annotated list).
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/chat` | Answer with sources + token/cost usage; optional `sources` scopes retrieval to those documents |
+| POST | `/chat` | Answer with sources + token/cost usage; optional `sources` scopes retrieval, optional `history` condenses follow-ups |
 | POST | `/chat/stream` | Token-by-token NDJSON stream |
-| POST | `/agent` | Corrective-RAG agent answer with trace (route / steps / attempts); accepts `sources` too |
+| POST | `/agent` | Corrective-RAG agent answer with trace (route / steps / attempts); accepts `sources` and `history` too |
 | POST | `/agent/stream` | Agent answer as an NDJSON stream |
 | POST | `/ingest` | Ingest a PDF/Markdown file (under `DATA_DIR`) or URL |
 | POST | `/ingest/upload` | Upload a PDF/Markdown file (multipart) and ingest it |
@@ -313,4 +323,8 @@ Deliberate trade-offs in the current implementation:
   (`KEYWORD_BACKEND=opensearch`).** The local store rebuilds its index on each ingest — fine at
   demo scale; the OpenSearch backend indexes incrementally, shares state across processes, and
   removes the scale ceiling. A dead OpenSearch degrades the keyword leg to vector-only results.
+- **Multi-turn is condense-only: generation never sees the history.** Follow-ups are rewritten
+  into standalone questions by a fast model; facts can only come from retrieved context, so the
+  cite-or-refuse contract stays single-turn and auditable. Rewrite-type follow-ups ("explain that
+  more simply") condense poorly — a documented trade-off, not a bug.
 - **Cost figures are estimates** from a static price table, not billed usage.

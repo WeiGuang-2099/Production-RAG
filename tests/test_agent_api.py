@@ -16,7 +16,7 @@ def test_agent_endpoint_returns_route_and_usage(client):
 
 
 def test_agent_stream_endpoint_emits_events(client):
-    async def fake_stream(question, top_k=None, sources=None):
+    async def fake_stream(question, top_k=None, sources=None, history=None):
         yield {"event": "step", "node": "route"}
         yield {"event": "done", "answer": "A", "usage": {}}
 
@@ -52,4 +52,24 @@ def test_agent_forwards_sources(client):
                                  "usage": {}, "route": "retrieve", "attempts": 0}
         resp = client.post("/agent", json={"question": "q", "sources": ["only.pdf"]})
         assert resp.status_code == 200
-        mock_run.assert_called_once_with("q", 5, ["only.pdf"])
+        mock_run.assert_called_once_with("q", 5, ["only.pdf"], [])
+
+
+def test_agent_rejects_bad_history_role(client):
+    resp = client.post(
+        "/agent", json={"question": "q", "history": [{"role": "tool", "content": "x"}]}
+    )
+    assert resp.status_code == 422
+
+
+def test_agent_forwards_history_and_returns_condensed(client):
+    with patch("app.api.routes_agent.run_agent") as mock_run:
+        mock_run.return_value = {"answer": "A", "sources": [], "latency_ms": 1.0, "usage": {},
+                                 "route": "retrieve", "attempts": 0,
+                                 "condensed_question": "standalone?"}
+        resp = client.post("/agent", json={
+            "question": "f?", "history": [{"role": "user", "content": "x"}]
+        })
+        assert resp.status_code == 200
+        assert resp.json()["condensed_question"] == "standalone?"
+        mock_run.assert_called_once_with("f?", 5, None, [{"role": "user", "content": "x"}])

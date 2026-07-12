@@ -21,9 +21,11 @@ export interface ChatResult {
   guardrails?: Guardrails;
   route?: string;
   attempts?: number;
+  condensed_question?: string | null;
 }
 export type StreamEvent =
   | { event: "step"; node: string }
+  | { event: "condensed"; condensed_question: string }
   | { event: "sources"; sources: SourceItem[] }
   | { event: "token"; token: string }
   | {

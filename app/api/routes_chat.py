@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -15,10 +16,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class ChatRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=50)
     sources: list[str] | None = None
+    history: list[HistoryTurn] | None = None
 
 
 class SourceItem(BaseModel):
@@ -33,6 +40,7 @@ class ChatResponse(BaseModel):
     total_sources: int
     usage: dict = {}
     guardrails: dict = {}
+    condensed_question: str | None = None
 
 
 @router.post("", response_model=ChatResponse)
@@ -41,7 +49,8 @@ async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)
     blocked = check_input(body.question)
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
-    result = await asyncio.to_thread(query_pipeline, body.question, body.top_k, body.sources)
+    history = [t.model_dump() for t in body.history or []]
+    result = await asyncio.to_thread(query_pipeline, body.question, body.top_k, body.sources, history)
     guarded = apply_output(result["answer"])
     sources = result.get("sources", [])
     return ChatResponse(
@@ -51,6 +60,7 @@ async def chat(request: Request, body: ChatRequest, _key=Depends(verify_api_key)
         total_sources=len(sources),
         usage=result.get("usage", {}),
         guardrails={"pii_redacted": guarded["pii_redacted"], "flags": guarded["flags"]},
+        condensed_question=result.get("condensed_question"),
     )
 
 
@@ -71,9 +81,11 @@ async def chat_stream(request: Request, body: ChatRequest, _key=Depends(verify_a
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
 
+    history = [t.model_dump() for t in body.history or []]
+
     async def event_generator():
         try:
-            async for event in stream_query(body.question, body.top_k, body.sources):
+            async for event in stream_query(body.question, body.top_k, body.sources, history):
                 if event.get("event") == "done":
                     g = apply_output(event.get("answer", ""))
                     event["answer"] = g["answer"]

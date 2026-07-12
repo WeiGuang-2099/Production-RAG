@@ -13,6 +13,9 @@ export function MessageThread({ messages }: { messages: ChatMessage[] }) {
         <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
           <div className={`text-xs font-medium ${m.role === "user" ? "text-primary" : "text-muted"}`}>{m.role}</div>
           {m.role === "assistant" && <AgentTrace steps={m.steps} route={m.route} attempts={m.attempts} />}
+          {m.role === "assistant" && m.condensed_question && m.condensed_question !== messages[i - 1]?.content && (
+            <div className="text-xs italic text-muted">interpreted as: {m.condensed_question}</div>
+          )}
           <div className="prose prose-sm max-w-none text-ink">
             <Markdown>{m.content || "..."}</Markdown>
           </div>
