@@ -1,0 +1,206 @@
+[
+  {
+    "id": "mt001",
+    "base_question_id": "q003",
+    "history": [
+      {"role": "user", "content": "What is the Transformer architecture?"},
+      {"role": "assistant", "content": "The Transformer is a sequence transduction model that relies entirely on attention mechanisms, dispensing with recurrence and convolutions [1]."}
+    ],
+    "follow_up": "How many heads does its multi-head attention use?",
+    "standalone_reference": "How many heads does the original base Transformer use in its multi-head attention?",
+    "source_papers": ["attention"]
+  },
+  {
+    "id": "mt002",
+    "base_question_id": "q002",
+    "history": [
+      {"role": "user", "content": "Tell me about the Transformer model."},
+      {"role": "assistant", "content": "The Transformer relies on self-attention to relate positions of a sequence, achieving state-of-the-art translation quality with far more parallelism than RNNs [1]."}
+    ],
+    "follow_up": "How is its attention actually computed?",
+    "standalone_reference": "How is scaled dot-product attention computed in the Transformer?",
+    "source_papers": ["attention"]
+  },
+  {
+    "id": "mt003",
+    "base_question_id": "q001",
+    "history": [
+      {"role": "user", "content": "What did the Attention Is All You Need paper introduce?"},
+      {"role": "assistant", "content": "It introduced the Transformer, the first sequence transduction model built entirely on attention [1]."}
+    ],
+    "follow_up": "What does it eliminate compared to earlier models?",
+    "standalone_reference": "What does the Transformer architecture eliminate compared to previous sequence transduction models?",
+    "source_papers": ["attention"]
+  },
+  {
+    "id": "mt004",
+    "base_question_id": "q004",
+    "history": [
+      {"role": "user", "content": "What is BERT?"},
+      {"role": "assistant", "content": "BERT is a bidirectional Transformer encoder pre-trained on unlabeled text and fine-tuned for downstream tasks [1]."}
+    ],
+    "follow_up": "What are its two pre-training objectives?",
+    "standalone_reference": "What are the two pre-training objectives used by BERT?",
+    "source_papers": ["bert"]
+  },
+  {
+    "id": "mt005",
+    "base_question_id": "q005",
+    "history": [
+      {"role": "user", "content": "What is BERT?"},
+      {"role": "assistant", "content": "BERT is a bidirectional Transformer encoder pre-trained with masked language modeling [1]."},
+      {"role": "user", "content": "What tasks was it evaluated on?"},
+      {"role": "assistant", "content": "It was evaluated on the GLUE benchmark, SQuAD question answering, and SWAG, setting new state-of-the-art results [1][2]."}
+    ],
+    "follow_up": "How many parameters does the base version have?",
+    "standalone_reference": "How many parameters does BERT-Base have?",
+    "source_papers": ["bert"]
+  },
+  {
+    "id": "mt006",
+    "base_question_id": "q006",
+    "history": [
+      {"role": "user", "content": "How does BERT represent input sequences?"},
+      {"role": "assistant", "content": "BERT tokenizes input with WordPiece and adds special tokens plus segment and position embeddings [1]."}
+    ],
+    "follow_up": "What is the role of its special classification token?",
+    "standalone_reference": "What is the role of the [CLS] token in BERT?",
+    "source_papers": ["bert"]
+  },
+  {
+    "id": "mt007",
+    "base_question_id": "q007",
+    "history": [
+      {"role": "user", "content": "What is GPT-3?"},
+      {"role": "assistant", "content": "GPT-3 is an autoregressive language model from OpenAI, evaluated extensively in zero-, one-, and few-shot settings [1]."}
+    ],
+    "follow_up": "How many parameters does the largest version contain?",
+    "standalone_reference": "How many parameters does the largest GPT-3 model contain?",
+    "source_papers": ["gpt3"]
+  },
+  {
+    "id": "mt008",
+    "base_question_id": "q008",
+    "history": [
+      {"role": "user", "content": "Tell me about GPT-3."},
+      {"role": "assistant", "content": "GPT-3 scales language models to 175 billion parameters and shows strong task-agnostic performance [1]."}
+    ],
+    "follow_up": "What learning paradigm does it emphasize that needs no gradient updates?",
+    "standalone_reference": "What learning paradigm does GPT-3 emphasize that requires no gradient updates?",
+    "source_papers": ["gpt3"]
+  },
+  {
+    "id": "mt009",
+    "base_question_id": "q008",
+    "history": [
+      {"role": "user", "content": "What is in-context learning?"},
+      {"role": "assistant", "content": "In-context learning is when a language model performs a task purely by conditioning on instructions or examples in its prompt, without weight updates [1]."},
+      {"role": "user", "content": "Which model made it famous?"},
+      {"role": "assistant", "content": "GPT-3 demonstrated it at scale [1]."}
+    ],
+    "follow_up": "In what three settings is it evaluated?",
+    "standalone_reference": "In what three settings (zero-shot, one-shot, few-shot) is GPT-3 evaluated?",
+    "source_papers": ["gpt3"]
+  },
+  {
+    "id": "mt010",
+    "base_question_id": "q009",
+    "history": [
+      {"role": "user", "content": "What is retrieval-augmented generation?"},
+      {"role": "assistant", "content": "RAG combines a pre-trained seq2seq model with a retriever that fetches relevant documents at inference time [1]."}
+    ],
+    "follow_up": "What are the two components that make it up?",
+    "standalone_reference": "What are the two components that make up the RAG model?",
+    "source_papers": ["rag"]
+  },
+  {
+    "id": "mt011",
+    "base_question_id": "q010",
+    "history": [
+      {"role": "user", "content": "Explain the RAG paper."},
+      {"role": "assistant", "content": "The RAG paper augments generation with a dense Wikipedia retriever, improving open-domain QA [1]."}
+    ],
+    "follow_up": "What are the two variants introduced in the paper?",
+    "standalone_reference": "What are the two RAG variants introduced in the paper?",
+    "source_papers": ["rag"]
+  },
+  {
+    "id": "mt012",
+    "base_question_id": "q009",
+    "history": [
+      {"role": "user", "content": "How does RAG combine memory types?"},
+      {"role": "assistant", "content": "It pairs parametric memory (the seq2seq model's weights) with non-parametric memory [1]."}
+    ],
+    "follow_up": "What does it use as the non-parametric part?",
+    "standalone_reference": "What does the RAG model use as its non-parametric memory?",
+    "source_papers": ["rag"]
+  },
+  {
+    "id": "mt013",
+    "base_question_id": "q011",
+    "history": [
+      {"role": "user", "content": "What is LoRA?"},
+      {"role": "assistant", "content": "LoRA freezes pre-trained weights and injects trainable low-rank matrices into Transformer layers [1]."}
+    ],
+    "follow_up": "What does the acronym stand for?",
+    "standalone_reference": "What does the acronym LoRA stand for?",
+    "source_papers": ["lora"]
+  },
+  {
+    "id": "mt014",
+    "base_question_id": "q013",
+    "history": [
+      {"role": "user", "content": "What is LoRA?"},
+      {"role": "assistant", "content": "LoRA (Low-Rank Adaptation) adapts large language models by training small rank-decomposition matrices instead of all weights [1]."}
+    ],
+    "follow_up": "By what factor can it reduce trainable parameters on GPT-3 175B?",
+    "standalone_reference": "By what factor can LoRA reduce the number of trainable parameters when adapting GPT-3 175B?",
+    "source_papers": ["lora"]
+  },
+  {
+    "id": "mt015",
+    "base_question_id": "q012",
+    "history": [
+      {"role": "user", "content": "Why is fine-tuning huge models expensive?"},
+      {"role": "assistant", "content": "Full fine-tuning retrains and stores every parameter per task, which is prohibitive at GPT-3 scale [1]."},
+      {"role": "user", "content": "Is there a cheaper adaptation method?"},
+      {"role": "assistant", "content": "Yes - LoRA is a parameter-efficient alternative [2]."}
+    ],
+    "follow_up": "What's the core idea behind its parameter efficiency?",
+    "standalone_reference": "What is the core idea behind LoRA's parameter efficiency?",
+    "source_papers": ["lora"]
+  },
+  {
+    "id": "mt016",
+    "base_question_id": "q015",
+    "history": [
+      {"role": "user", "content": "How do you get LLMs to reason step by step?"},
+      {"role": "assistant", "content": "Chain-of-thought prompting provides exemplars with intermediate reasoning steps so the model produces its own reasoning chain before answering [1]."}
+    ],
+    "follow_up": "On what kinds of tasks does it show the largest gains?",
+    "standalone_reference": "On what kinds of tasks does chain-of-thought prompting show the largest gains?",
+    "source_papers": ["cot"]
+  },
+  {
+    "id": "mt017",
+    "base_question_id": "q014",
+    "history": [
+      {"role": "user", "content": "I heard prompting with reasoning examples helps math problems."},
+      {"role": "assistant", "content": "Yes - that technique substantially improves arithmetic and symbolic reasoning in large models [1]."}
+    ],
+    "follow_up": "What is that technique exactly?",
+    "standalone_reference": "What is chain-of-thought prompting?",
+    "source_papers": ["cot"]
+  },
+  {
+    "id": "mt018",
+    "base_question_id": "q013",
+    "history": [
+      {"role": "user", "content": "What is GPT-3?"},
+      {"role": "assistant", "content": "GPT-3 is a 175-billion-parameter autoregressive language model [1]."}
+    ],
+    "follow_up": "How can LoRA help adapt it efficiently?",
+    "standalone_reference": "How can LoRA efficiently adapt GPT-3?",
+    "source_papers": ["lora"]
+  }
+]
