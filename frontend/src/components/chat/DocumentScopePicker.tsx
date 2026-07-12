@@ -15,11 +15,11 @@ export function DocumentScopePicker({ docs, selected, onChange }: Props) {
     );
   };
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 text-xs">
       <span className="text-muted">Scope:</span>
       <button
         type="button"
-        className={`rounded-full border px-2 py-0.5 ${selected.length === 0 ? "border-primary text-primary" : "border-muted/50 text-muted"}`}
+        className={`rounded-full border px-2 py-0.5 ${selected.length === 0 ? "border-primary bg-highlight text-highlight-ink" : "border-line text-muted hover:text-ink"}`}
         onClick={() => onChange([])}
       >
         All documents
@@ -31,7 +31,7 @@ export function DocumentScopePicker({ docs, selected, onChange }: Props) {
             key={d.id}
             type="button"
             title={d.source}
-            className={`rounded-full border px-2 py-0.5 ${on ? "border-primary text-primary" : "border-muted/50 text-muted"}`}
+            className={`rounded-full border px-2 py-0.5 ${on ? "border-primary bg-highlight text-highlight-ink" : "border-line text-muted hover:text-ink"}`}
             onClick={() => toggle(d.source)}
           >
             {displaySource(d.source)}

@@ -1,38 +1,41 @@
 import { useEffect } from "react";
-import { ChatControls } from "../components/chat/ChatControls";
-import { DocumentScopePicker } from "../components/chat/DocumentScopePicker";
+import { Composer } from "../components/chat/Composer";
+import { EmptyState } from "../components/chat/EmptyState";
 import { MessageThread } from "../components/chat/MessageThread";
 import { useChatContext } from "../context/ChatContext";
 import { useDocuments } from "../hooks/useDocuments";
 
 export function ChatPage() {
-  const { messages, busy, send, newSession, agent, stream, topK, setAgent, setStream, setTopK,
+  const { messages, busy, send, agent, stream, topK, setAgent, setStream, setTopK,
     scopeSources, setScopeSources } = useChatContext();
   const { docs, refresh } = useDocuments();
   useEffect(() => { refresh(); }, [refresh]);
 
+  const ask = (q: string) => send(q, { agent, stream, topK, sources: scopeSources });
+
   return (
-    <div className="flex h-full flex-col bg-bg">
-      <div className="border-b border-muted/30 px-4 pt-3">
-        <DocumentScopePicker docs={docs} selected={scopeSources} onChange={setScopeSources} />
-      </div>
-      <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <p className="text-sm text-muted">Ask a question about your ingested documents.</p>
+          <EmptyState onAsk={ask} />
         ) : (
-          <MessageThread messages={messages} />
+          <div className="mx-auto max-w-3xl px-4 py-8">
+            <MessageThread messages={messages} />
+          </div>
         )}
       </div>
-      <ChatControls
+      <Composer
         agent={agent}
         stream={stream}
         topK={topK}
         busy={busy}
+        docs={docs}
+        scopeSources={scopeSources}
         onAgent={setAgent}
         onStream={setStream}
         onTopK={setTopK}
-        onClear={newSession}
-        onSend={(q) => send(q, { agent, stream, topK, sources: scopeSources })}
+        onScope={setScopeSources}
+        onSend={ask}
       />
     </div>
   );

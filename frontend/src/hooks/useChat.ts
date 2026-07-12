@@ -148,7 +148,5 @@ export function useChat() {
     newSession,
     switchSession,
     deleteSession,
-    // Transitional alias, removed in the chat-column task:
-    clear: newSession,
   };
 }
