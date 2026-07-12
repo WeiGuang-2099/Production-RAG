@@ -12,7 +12,7 @@ export function ChatPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] flex-col rounded-lg border border-muted/30 bg-surface">
+    <div className="flex h-full flex-col bg-bg">
       <div className="border-b border-muted/30 px-4 pt-3">
         <DocumentScopePicker docs={docs} selected={scopeSources} onChange={setScopeSources} />
       </div>
