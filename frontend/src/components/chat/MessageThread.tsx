@@ -1,11 +1,18 @@
 import { motion } from "framer-motion";
 import Markdown from "react-markdown";
+import { linkCitations } from "../../api/citations";
 import type { ChatMessage } from "../../hooks/useChat";
 import { AgentTrace } from "./AgentTrace";
 import { MetricChips } from "./MetricChips";
 import { SourceCards } from "./SourceCards";
 
-export function MessageThread({ messages }: { messages: ChatMessage[] }) {
+export function MessageThread({
+  messages,
+  onCitation,
+}: {
+  messages: ChatMessage[];
+  onCitation?: (messageIndex: number, citation: number) => void;
+}) {
   return (
     <div className="space-y-8">
       {messages.map((m, i) =>
@@ -25,7 +32,27 @@ export function MessageThread({ messages }: { messages: ChatMessage[] }) {
             </div>
             <AgentTrace steps={m.steps} />
             <div className="prose prose-sm max-w-none text-ink">
-              <Markdown>{m.content || "..."}</Markdown>
+              <Markdown
+                urlTransform={(url) => url}
+                components={{
+                  a: ({ href, children }) =>
+                    href?.startsWith("citation:") ? (
+                      <button
+                        type="button"
+                        className="mx-0.5 rounded bg-highlight px-1 font-mono text-[11px] text-highlight-ink hover:outline hover:outline-1 hover:outline-primary"
+                        onClick={() => onCitation?.(i, Number(href.slice("citation:".length)))}
+                      >
+                        {children}
+                      </button>
+                    ) : (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        {children}
+                      </a>
+                    ),
+                }}
+              >
+                {linkCitations(m.content) || "..."}
+              </Markdown>
             </div>
             <MetricChips
               message={m}
@@ -35,8 +62,10 @@ export function MessageThread({ messages }: { messages: ChatMessage[] }) {
                   : undefined
               }
             />
-            {/* Inline sources are the <lg fallback; the inspector owns lg+ (Task 5 adds lg:hidden) */}
-            <SourceCards sources={m.sources ?? []} />
+            {/* Inline sources are the <lg fallback; the inspector owns lg+ */}
+            <div className="lg:hidden">
+              <SourceCards sources={m.sources ?? []} />
+            </div>
           </motion.div>
         ),
       )}
