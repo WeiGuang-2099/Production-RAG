@@ -1,0 +1,155 @@
+{
+  "rows": [
+    {
+      "count": 18,
+      "recall@5": 0.7777777777777778,
+      "mrr": 0.7019179894179894,
+      "hit@5": 0.7777777777777778,
+      "condition": "raw"
+    },
+    {
+      "count": 18,
+      "recall@5": 1.0,
+      "mrr": 1.0,
+      "hit@5": 1.0,
+      "condition": "condensed"
+    },
+    {
+      "count": 18,
+      "recall@5": 1.0,
+      "mrr": 0.9722222222222222,
+      "hit@5": 1.0,
+      "condition": "oracle"
+    }
+  ],
+  "rewrites": [
+    {
+      "id": "mt001",
+      "follow_up": "How many heads does its multi-head attention use?",
+      "condensed": "How many heads does the multi-head attention mechanism in the Transformer architecture use?",
+      "applied": true,
+      "oracle": "How many heads does the original base Transformer use in its multi-head attention?"
+    },
+    {
+      "id": "mt002",
+      "follow_up": "How is its attention actually computed?",
+      "condensed": "How is the attention mechanism in the Transformer model actually computed?",
+      "applied": true,
+      "oracle": "How is scaled dot-product attention computed in the Transformer?"
+    },
+    {
+      "id": "mt003",
+      "follow_up": "What does it eliminate compared to earlier models?",
+      "condensed": "What does the Transformer model eliminate compared to earlier sequence transduction models?",
+      "applied": true,
+      "oracle": "What does the Transformer architecture eliminate compared to previous sequence transduction models?"
+    },
+    {
+      "id": "mt004",
+      "follow_up": "What are its two pre-training objectives?",
+      "condensed": "What are the two pre-training objectives of BERT?",
+      "applied": true,
+      "oracle": "What are the two pre-training objectives used by BERT?"
+    },
+    {
+      "id": "mt005",
+      "follow_up": "How many parameters does the base version have?",
+      "condensed": "How many parameters does the base version of BERT have?",
+      "applied": true,
+      "oracle": "How many parameters does BERT-Base have?"
+    },
+    {
+      "id": "mt006",
+      "follow_up": "What is the role of its special classification token?",
+      "condensed": "What is the role of BERT's special classification token?",
+      "applied": true,
+      "oracle": "What is the role of the [CLS] token in BERT?"
+    },
+    {
+      "id": "mt007",
+      "follow_up": "How many parameters does the largest version contain?",
+      "condensed": "How many parameters does the largest version of GPT-3 contain?",
+      "applied": true,
+      "oracle": "How many parameters does the largest GPT-3 model contain?"
+    },
+    {
+      "id": "mt008",
+      "follow_up": "What learning paradigm does it emphasize that needs no gradient updates?",
+      "condensed": "What learning paradigm does GPT-3 emphasize that requires no gradient updates?",
+      "applied": true,
+      "oracle": "What learning paradigm does GPT-3 emphasize that requires no gradient updates?"
+    },
+    {
+      "id": "mt009",
+      "follow_up": "In what three settings is it evaluated?",
+      "condensed": "In what three settings is in-context learning evaluated?",
+      "applied": true,
+      "oracle": "In what three settings (zero-shot, one-shot, few-shot) is GPT-3 evaluated?"
+    },
+    {
+      "id": "mt010",
+      "follow_up": "What are the two components that make it up?",
+      "condensed": "What are the two components that make up retrieval-augmented generation?",
+      "applied": true,
+      "oracle": "What are the two components that make up the RAG model?"
+    },
+    {
+      "id": "mt011",
+      "follow_up": "What are the two variants introduced in the paper?",
+      "condensed": "What are the two variants introduced in the RAG paper?",
+      "applied": true,
+      "oracle": "What are the two RAG variants introduced in the paper?"
+    },
+    {
+      "id": "mt012",
+      "follow_up": "What does it use as the non-parametric part?",
+      "condensed": "What does the RAG model use as the non-parametric memory component?",
+      "applied": true,
+      "oracle": "What does the RAG model use as its non-parametric memory?"
+    },
+    {
+      "id": "mt013",
+      "follow_up": "What does the acronym stand for?",
+      "condensed": "What does the acronym LoRA stand for?",
+      "applied": true,
+      "oracle": "What does the acronym LoRA stand for?"
+    },
+    {
+      "id": "mt014",
+      "follow_up": "By what factor can it reduce trainable parameters on GPT-3 175B?",
+      "condensed": "By what factor can LoRA reduce the number of trainable parameters when applied to the GPT-3 model with 175 billion parameters?",
+      "applied": true,
+      "oracle": "By what factor can LoRA reduce the number of trainable parameters when adapting GPT-3 175B?"
+    },
+    {
+      "id": "mt015",
+      "follow_up": "What's the core idea behind its parameter efficiency?",
+      "condensed": "What is the core idea behind the parameter efficiency of the LoRA adaptation method?",
+      "applied": true,
+      "oracle": "What is the core idea behind LoRA's parameter efficiency?"
+    },
+    {
+      "id": "mt016",
+      "follow_up": "On what kinds of tasks does it show the largest gains?",
+      "condensed": "On what kinds of tasks does chain-of-thought prompting show the largest gains in reasoning ability for large language models?",
+      "applied": true,
+      "oracle": "On what kinds of tasks does chain-of-thought prompting show the largest gains?"
+    },
+    {
+      "id": "mt017",
+      "follow_up": "What is that technique exactly?",
+      "condensed": "What is the technique of prompting with reasoning examples in relation to solving math problems?",
+      "applied": true,
+      "oracle": "What is chain-of-thought prompting?"
+    },
+    {
+      "id": "mt018",
+      "follow_up": "How can LoRA help adapt it efficiently?",
+      "condensed": "How can Low-Rank Adaptation (LoRA) help adapt the GPT-3 model efficiently?",
+      "applied": true,
+      "oracle": "How can LoRA efficiently adapt GPT-3?"
+    }
+  ],
+  "condense_p50_ms": 845.8,
+  "condense_p95_ms": 4239.0
+}

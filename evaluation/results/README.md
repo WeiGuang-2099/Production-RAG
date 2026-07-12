@@ -130,6 +130,14 @@ testing whether naive tokenization caused BM25's vanishing recall edge at
 scale. Verdict (it did not) and paired tables:
 [`20260710T231042Z_keyword_backend.md`](20260710T231042Z_keyword_backend.md).
 
+## Multi-turn: condense-question recovery
+
+Follow-ups with pronouns/ellipsis retrieved against raw text and missed;
+the condense step (2026-07-11) rewrites them into standalone questions.
+Three-condition measurement (raw / condensed / hand-written oracle) on 18
+follow-up items plus the condense step's latency:
+[`20260712T014325Z_multiturn.md`](20260712T014325Z_multiturn.md).
+
 ### Generation at scale: the refusal contract holds
 
 RAGAS (grounded prompt, full 48 questions) rerun against the 30-paper corpus
