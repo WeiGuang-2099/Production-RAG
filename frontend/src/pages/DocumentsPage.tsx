@@ -11,18 +11,21 @@ export function DocumentsPage() {
   }, [refresh]);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-muted/30 bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-ink">Add documents</h2>
-        <UploadZone onFile={ingestFile} />
-        <div className="mt-4">
-          <UrlIngest onSubmit={ingestUrl} />
-        </div>
-      </section>
-      <section className="rounded-lg border border-muted/30 bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-ink">Ingested documents</h2>
-        <DocumentTable docs={docs} onDelete={remove} />
-      </section>
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <h1 className="font-serif text-2xl font-semibold text-ink">Documents</h1>
+        <section className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+          <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-primary">Add documents</h2>
+          <UploadZone onFile={ingestFile} />
+          <div className="mt-4">
+            <UrlIngest onSubmit={ingestUrl} />
+          </div>
+        </section>
+        <section className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+          <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-primary">Ingested documents</h2>
+          <DocumentTable docs={docs} onDelete={remove} />
+        </section>
+      </div>
     </div>
   );
 }

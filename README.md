@@ -123,12 +123,12 @@ unset.
 **Chat** — grounded answer with `[n]` citations and expandable source chunks (including a
 knowledge-graph hit):
 
-![Chat: grounded, cited answers with expandable sources](docs/screenshots/chat.png)
+![Chat workbench: grounded, cited answers with a linked source inspector](docs/screenshots/chat.png)
 
 **Agent mode** — the corrective-RAG trace (`route → retrieve → grade → generate`) is shown above
 the answer, with per-query token and cost accounting below it:
 
-![Agent mode: corrective-RAG trace with token and cost accounting](docs/screenshots/agent.png)
+![Agent mode: corrective-RAG trace with token and cost accounting as metric chips](docs/screenshots/agent.png)
 
 ## Evaluation
 
