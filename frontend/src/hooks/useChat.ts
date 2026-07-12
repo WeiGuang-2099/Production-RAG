@@ -15,6 +15,7 @@ export interface ChatMessage {
   route?: string;
   attempts?: number;
   steps?: string[];
+  condensed_question?: string;
 }
 
 export interface SendOpts {
@@ -73,17 +74,25 @@ export function useChat(options: { persistKey?: string } = {}) {
       if (!question.trim() || busy) return;
       setBusy(true);
       setMessages((ms) => [...ms, { role: "user", content: question }, { role: "assistant", content: "" }]);
+      const history = messages
+        .filter((m) => m.content && !m.content.startsWith("Error:"))
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
       const base = opts.agent ? "/agent" : "/chat";
-      const body: { question: string; top_k: number; sources?: string[] } = {
-        question,
-        top_k: opts.topK,
-      };
+      const body: {
+        question: string;
+        top_k: number;
+        sources?: string[];
+        history?: { role: "user" | "assistant"; content: string }[];
+      } = { question, top_k: opts.topK };
       if (opts.sources && opts.sources.length > 0) body.sources = opts.sources;
+      if (history.length > 0) body.history = history;
       try {
         if (opts.stream) {
           const stream = await postStream(client, `${base}/stream`, body);
           for await (const ev of streamNdjson(stream)) {
             if (ev.event === "step") patchLast((m) => ({ ...m, steps: [...(m.steps ?? []), ev.node] }));
+            else if (ev.event === "condensed") patchLast({ condensed_question: ev.condensed_question });
             else if (ev.event === "sources") patchLast({ sources: ev.sources });
             else if (ev.event === "token") patchLast((m) => ({ ...m, content: m.content + ev.token }));
             else if (ev.event === "done")
@@ -111,6 +120,7 @@ export function useChat(options: { persistKey?: string } = {}) {
             latency_ms: r.latency_ms,
             route: r.route,
             attempts: r.attempts,
+            condensed_question: r.condensed_question ?? undefined,
           });
         }
       } catch (e) {
@@ -121,7 +131,7 @@ export function useChat(options: { persistKey?: string } = {}) {
         setBusy(false);
       }
     },
-    [busy, client, patchLast, toast],
+    [busy, client, messages, patchLast, toast],
   );
 
   return { messages, busy, send, clear };
