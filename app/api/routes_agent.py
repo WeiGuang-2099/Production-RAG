@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -15,10 +16,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class AgentRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=50)
     sources: list[str] | None = None
+    history: list[HistoryTurn] | None = None
 
 
 class AgentResponse(BaseModel):
@@ -29,6 +36,7 @@ class AgentResponse(BaseModel):
     route: str = ""
     attempts: int = 0
     guardrails: dict = {}
+    condensed_question: str | None = None
 
 
 @router.post("", response_model=AgentResponse)
@@ -37,7 +45,8 @@ async def agent(request: Request, body: AgentRequest, _key=Depends(verify_api_ke
     blocked = check_input(body.question)
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
-    result = await asyncio.to_thread(run_agent, body.question, body.top_k, body.sources)
+    history = [t.model_dump() for t in body.history or []]
+    result = await asyncio.to_thread(run_agent, body.question, body.top_k, body.sources, history)
     guarded = apply_output(result["answer"])
     return AgentResponse(
         answer=guarded["answer"],
@@ -47,6 +56,7 @@ async def agent(request: Request, body: AgentRequest, _key=Depends(verify_api_ke
         route=result.get("route", ""),
         attempts=result.get("attempts", 0),
         guardrails={"pii_redacted": guarded["pii_redacted"], "flags": guarded["flags"]},
+        condensed_question=result.get("condensed_question"),
     )
 
 
@@ -57,9 +67,11 @@ async def agent_stream(request: Request, body: AgentRequest, _key=Depends(verify
     if blocked:
         raise HTTPException(status_code=400, detail={"error": "blocked by input guardrails", "patterns": blocked})
 
+    history = [t.model_dump() for t in body.history or []]
+
     async def event_generator():
         try:
-            async for event in stream_agent(body.question, body.top_k, body.sources):
+            async for event in stream_agent(body.question, body.top_k, body.sources, history):
                 if event.get("event") == "done":
                     g = apply_output(event.get("answer", ""))
                     event["answer"] = g["answer"]
