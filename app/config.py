@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     CACHE_SIMILARITY_THRESHOLD: float = 0.95
     REDIS_URL: str = ""   # e.g. redis://localhost:6379/0; empty = in-process cache
 
+    # Chat history (multi-turn condense)
+    HISTORY_CONDENSE_ENABLED: bool = True            # kill switch for the condense step
+    CHAT_HISTORY_MAX_TURNS: int = 10                 # last N turns kept server-side
+    CHAT_HISTORY_MAX_TURN_CHARS: int = 2000          # per-turn content cap
+
     # Agent
     AGENT_MAX_REWRITES: int = 2
 
@@ -148,6 +153,20 @@ class Settings(BaseSettings):
     def validate_cache_threshold(cls, v: float) -> float:
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"CACHE_SIMILARITY_THRESHOLD must be in [0.0, 1.0], got {v}")
+        return v
+
+    @field_validator("CHAT_HISTORY_MAX_TURNS")
+    @classmethod
+    def validate_chat_history_max_turns(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"CHAT_HISTORY_MAX_TURNS must be >= 0, got {v}")
+        return v
+
+    @field_validator("CHAT_HISTORY_MAX_TURN_CHARS")
+    @classmethod
+    def validate_chat_history_max_turn_chars(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError(f"CHAT_HISTORY_MAX_TURN_CHARS must be > 0, got {v}")
         return v
 
     @field_validator("AGENT_MAX_REWRITES")
