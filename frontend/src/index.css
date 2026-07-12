@@ -3,5 +3,9 @@
 @tailwind utilities;
 
 body {
-  @apply bg-bg text-ink antialiased;
+  @apply bg-bg font-sans text-ink antialiased;
+}
+
+::selection {
+  @apply bg-highlight text-highlight-ink;
 }

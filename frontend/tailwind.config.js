@@ -4,14 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: "#eaebef",
+        bg: "#FAF9F5",
         surface: "#ffffff",
-        primary: { DEFAULT: "#09568c", hover: "#073f66" },
-        muted: "#a1a8ae",
-        ink: "#0f2233",
-        danger: "#b3261e",
+        sunken: "#F5F4EF",
+        ink: "#1C1917",
+        muted: "#78716C",
+        line: "#E7E5E0",
+        primary: { DEFAULT: "#B45309", hover: "#92400E" },
+        highlight: { DEFAULT: "#FEF3C7", ink: "#92400E" },
+        danger: "#B3261E",
+        success: "#15803D",
       },
       fontFamily: {
+        sans: ["'Inter Variable'", "system-ui", "sans-serif"],
+        serif: ["'Source Serif 4 Variable'", "Georgia", "serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
     },
