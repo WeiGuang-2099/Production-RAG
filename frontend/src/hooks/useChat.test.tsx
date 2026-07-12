@@ -50,22 +50,27 @@ test("streaming appends tokens and finalizes from the done event", async () => {
   expect(last.usage?.output_tokens).toBe(2);
 });
 
-test("hydrates messages from localStorage and clear() empties them", async () => {
+test("migrates a legacy conversation and newSession starts a fresh thread", async () => {
   localStorage.setItem(
-    "test-chat",
+    "rag-chat",
     JSON.stringify([{ role: "user", content: "hi" }, { role: "assistant", content: "yo" }]),
   );
-  const { result } = renderHook(() => useChat({ persistKey: "test-chat" }), { wrapper });
+  const { result } = renderHook(() => useChat(), { wrapper });
   expect(result.current.messages).toHaveLength(2);
+  expect(localStorage.getItem("rag-chat")).toBeNull();
+  expect(result.current.sessions).toHaveLength(1);
 
-  act(() => result.current.clear());
+  act(() => result.current.newSession());
   expect(result.current.messages).toHaveLength(0);
-  expect(localStorage.getItem("test-chat")).toBeNull();
+  expect(result.current.sessions).toHaveLength(2); // old thread preserved
+
+  act(() => result.current.switchSession(result.current.sessions[1].id));
+  expect(result.current.messages).toHaveLength(2);
 });
 
 test("sends prior turns as history, excluding the new question", async () => {
   localStorage.setItem(
-    "test-chat",
+    "rag-chat",
     JSON.stringify([
       { role: "user", content: "What is LoRA?" },
       { role: "assistant", content: "LoRA is ... [1]" },
@@ -75,7 +80,7 @@ test("sends prior turns as history, excluding the new question", async () => {
     new Response(JSON.stringify({ answer: "ok", sources: [], latency_ms: 1 }), { status: 200 }),
   );
   vi.stubGlobal("fetch", fetchMock);
-  const { result } = renderHook(() => useChat({ persistKey: "test-chat" }), { wrapper });
+  const { result } = renderHook(() => useChat(), { wrapper });
   await act(async () => {
     await result.current.send("its cost?", { agent: false, stream: false, topK: 5 });
   });
@@ -117,4 +122,11 @@ test("condensed stream event lands on the assistant message", async () => {
     await result.current.send("it?", { agent: false, stream: true, topK: 5 });
   });
   expect(result.current.messages.at(-1)!.condensed_question).toBe("What is LoRA?");
+});
+
+test("deleteSession of the only session leaves one fresh empty session", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.deleteSession(result.current.activeId));
+  expect(result.current.sessions).toHaveLength(1);
+  expect(result.current.messages).toHaveLength(0);
 });

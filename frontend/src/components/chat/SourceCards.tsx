@@ -23,7 +23,7 @@ export function SourceCards({ sources }: { sources: SourceItem[] }) {
               const citation = s.metadata?.citation ?? i + 1;
               const score = s.metadata?.score;
               return (
-                <li key={i} className="rounded-md border border-muted/30 bg-surface p-3 text-sm">
+                <li key={i} className="rounded-md border border-line bg-surface p-3 text-sm">
                   <div className="flex items-center gap-2 font-mono text-xs text-muted">
                     <span className="text-primary">[{String(citation)}]</span>
                     <span className="truncate" title={s.metadata?.source ?? "unknown"}>

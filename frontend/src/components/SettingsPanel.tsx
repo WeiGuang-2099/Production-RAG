@@ -5,9 +5,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { client, setBaseUrl, setApiKey } = useSettings();
   return (
     <motion.div
-      initial={{ opacity: 0, y: -8 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="absolute right-0 top-12 z-40 w-80 rounded-lg border border-muted/40 bg-surface p-4 shadow-xl"
+      className="absolute bottom-full left-0 z-50 mb-2 w-72 rounded-lg border border-line bg-surface p-4 shadow-xl"
     >
       <label className="block text-xs font-medium text-muted">API URL</label>
       <input
