@@ -563,3 +563,109 @@ def test_retrieve_and_rerank_parallel_matches_serial_semantics():
 
         # Hybrid docs first (in fused order), then graph docs — as in serial code
         assert [d.page_content for d in result] == ["v1", "g1"]
+
+
+def test_query_pipeline_threads_condensed_question_through_cache_and_llm():
+    from app.core.condense import CondenseResult
+
+    fake_cache = MagicMock()
+    fake_cache.get.return_value = None
+    cond_usage = {"input_tokens": 20, "output_tokens": 6, "cost_usd": 0.00001, "model": "gpt-4o-mini"}
+    with patch("app.core.pipeline.condense_question",
+               return_value=CondenseResult("standalone?", True, cond_usage)) as mock_cond, \
+         patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
+         patch("app.core.pipeline._retrieve_and_rerank", return_value=[]) as mock_rr, \
+         patch("app.core.pipeline.complete_with_model", return_value=("ans", "gpt-4o")) as mock_llm, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"):
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("follow up?", history=[{"role": "user", "content": "What is X?"}])
+
+        mock_cond.assert_called_once_with("follow up?", [{"role": "user", "content": "What is X?"}])
+        fake_cache.get.assert_called_once_with("standalone?")
+        assert mock_rr.call_args.args[0] == "standalone?"
+        prompt = mock_llm.call_args.args[0]
+        assert "standalone?" in prompt and "follow up?" not in prompt
+        assert result["condensed_question"] == "standalone?"
+        assert result["usage"]["condense"] == cond_usage
+        # the cached payload stays conversation-free
+        put_key, put_value = fake_cache.put.call_args.args
+        assert put_key == "standalone?"
+        assert "condensed_question" not in put_value
+        assert "condense" not in put_value["usage"]
+
+
+def test_query_pipeline_no_history_never_calls_condense_llm():
+    with patch("app.core.condense.complete_with_model") as mock_fast, \
+         patch("app.core.pipeline._get_query_cache", return_value=None), \
+         patch("app.core.pipeline._retrieve_and_rerank", return_value=[]), \
+         patch("app.core.pipeline.complete_with_model", return_value=("ans", "gpt-4o")), \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"):
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("plain question?")
+        mock_fast.assert_not_called()
+        assert result["condensed_question"] is None
+
+
+def test_query_pipeline_cache_hit_carries_condense_transparency():
+    from app.core.condense import CondenseResult
+
+    fake_cache = MagicMock()
+    fake_cache.get.return_value = {
+        "answer": "CACHED", "sources": [], "latency_ms": 1.0, "usage": {"cost_usd": 0.001}
+    }
+    cond_usage = {"input_tokens": 20, "output_tokens": 6, "cost_usd": 0.00001, "model": "gpt-4o-mini"}
+    with patch("app.core.pipeline.condense_question",
+               return_value=CondenseResult("standalone?", True, cond_usage)), \
+         patch("app.core.pipeline._get_query_cache", return_value=fake_cache), \
+         patch("app.core.pipeline._retrieve_and_rerank") as mock_rr, \
+         patch("app.core.pipeline.get_settings") as mock_s:
+        mock_s.return_value.TOP_K = 5
+        from app.core.pipeline import query_pipeline
+        result = query_pipeline("f?", history=[{"role": "user", "content": "x"}])
+
+        fake_cache.get.assert_called_once_with("standalone?")
+        mock_rr.assert_not_called()
+        assert result["cached"] is True
+        assert result["condensed_question"] == "standalone?"
+        assert result["usage"]["condense"] == cond_usage
+
+
+async def test_stream_query_emits_condensed_event_before_sources():
+    from app.core.condense import CondenseResult
+
+    class Chunk:
+        def __init__(self, content):
+            self.content = content
+
+    async def fake_astream(_text):
+        yield Chunk("Hi")
+
+    cond_usage = {"input_tokens": 20, "output_tokens": 6, "cost_usd": 0.00001, "model": "gpt-4o-mini"}
+    with patch("app.core.pipeline.condense_question",
+               return_value=CondenseResult("standalone?", True, cond_usage)), \
+         patch("app.core.pipeline._retrieve_and_rerank", return_value=[]) as mock_rr, \
+         patch("app.core.pipeline.get_settings") as mock_s, \
+         patch("app.core.pipeline.trace_retrieval"), \
+         patch("app.core.pipeline.get_llm") as mock_llm_f:
+        mock_s.return_value.TOP_K = 5
+        mock_s.return_value.PROMPT_MODE = "grounded"
+        mock_s.return_value.LLM_MODEL = "gpt-4o"
+        mock_llm = MagicMock()
+        mock_llm.astream = fake_astream
+        mock_llm_f.return_value = mock_llm
+
+        from app.core.pipeline import stream_query
+        events = [e async for e in stream_query("f?", history=[{"role": "user", "content": "x"}])]
+
+    kinds = [e["event"] for e in events]
+    assert kinds[0] == "condensed"
+    assert events[0]["condensed_question"] == "standalone?"
+    assert kinds[1] == "sources"
+    assert mock_rr.call_args.args[0] == "standalone?"
+    assert events[-1]["usage"]["condense"] == cond_usage
