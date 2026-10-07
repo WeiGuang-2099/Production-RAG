@@ -126,3 +126,39 @@ def test_search_does_not_reload_when_unchanged(tmp_path, monkeypatch):
     store.search("alpha")
     store.search("alpha")
     assert calls["n"] == 0
+
+
+# Under the old lower().split() tokenizer, "autoregressive?" and "gpt-3:" never match the
+# chunk's "autoregressive." and "GPT-3:", and the shorter BERT chunk wins on "is" alone.
+_PUNCT_DOCS = [
+    Document(page_content="BERT is bidirectional.", metadata={"source": "bert"}),
+    Document(page_content="LoRA freezes the pretrained weights.", metadata={"source": "lora"}),
+    Document(page_content="GPT-3: a large language model trained to be autoregressive.", metadata={"source": "gpt3"}),
+]
+_PUNCT_QUERY = "Is GPT-3 autoregressive?"
+
+
+def test_punctuation_does_not_block_a_match(tmp_path):
+    store = BM25Store(data_dir=str(tmp_path))
+    store.add_documents(_PUNCT_DOCS)
+
+    results = store.search(_PUNCT_QUERY, top_k=1)
+    assert results and results[0][0].metadata["source"] == "gpt3"
+
+
+def test_index_from_an_older_tokenizer_is_retokenized_on_load(tmp_path):
+    import pickle
+
+    from rank_bm25 import BM25Okapi
+
+    from app.retrieval.bm25_store import TOKENIZER_VERSION
+
+    old_corpus = [d.page_content.lower().split() for d in _PUNCT_DOCS]
+    with open(tmp_path / "bm25_index.pkl", "wb") as f:  # version-1 pickle: no tokenizer_version key
+        pickle.dump({"documents": _PUNCT_DOCS, "tokenized_corpus": old_corpus, "bm25": BM25Okapi(old_corpus)}, f)
+
+    store = BM25Store(data_dir=str(tmp_path))
+
+    assert store.search(_PUNCT_QUERY, top_k=1)[0][0].metadata["source"] == "gpt3"
+    with open(tmp_path / "bm25_index.pkl", "rb") as f:
+        assert pickle.load(f)["tokenizer_version"] == TOKENIZER_VERSION
