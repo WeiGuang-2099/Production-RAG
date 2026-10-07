@@ -7,7 +7,7 @@ Docker deployment.
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-293%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-300%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -96,7 +96,7 @@ curl -F "file=@attention.pdf" http://localhost:8000/ingest/upload
 # 4. Ask a question (streaming)
 curl -N -X POST http://localhost:8000/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"question": "What does the Transformer eliminate?"}'
+  -d '{"question": "What does the Transformer architecture eliminate, and what does it rely on instead?"}'
 ```
 
 ## Demo UI
@@ -142,7 +142,8 @@ is documented in [`evaluation/README.md`](evaluation/README.md).
 
 ```bash
 python evaluation/corpus/download_papers.py        # fetch the 6 papers
-# ingest them (loop in evaluation/README.md), then:
+# ingest in-process (needs only Qdrant); llm builds the graph the +graph row needs
+GRAPH_EXTRACTOR=llm python evaluation/ingest_corpus.py
 
 # Cheap, deterministic retrieval ablation (no LLM judge):
 python evaluation/run_ablation.py --k 5
@@ -216,7 +217,7 @@ real measurement pitfall for cite-or-refuse systems that the
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 293 tests, all mocked (no services needed)
+pytest -q                                  # 300 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
