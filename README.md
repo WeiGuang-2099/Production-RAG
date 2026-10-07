@@ -86,13 +86,12 @@ flowchart LR
 # 1. Configure
 cp .env.example .env          # add your OpenAI + Cohere keys
 
-# 2. Start API + Qdrant
+# 2. Start the stack (API, Qdrant, Redis, OpenSearch)
 docker-compose up -d
 
-# 3. Ingest a document (must live under DATA_DIR)
-curl -X POST http://localhost:8000/ingest \
-  -H "Content-Type: application/json" \
-  -d '{"source": "./data/papers/attention.pdf"}'
+# 3. Upload a document (here the Transformer paper from arXiv)
+curl -L -o attention.pdf https://arxiv.org/pdf/1706.03762
+curl -F "file=@attention.pdf" http://localhost:8000/ingest/upload
 
 # 4. Ask a question (streaming)
 curl -N -X POST http://localhost:8000/chat/stream \
