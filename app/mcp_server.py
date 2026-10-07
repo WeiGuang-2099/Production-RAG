@@ -16,13 +16,13 @@ mcp = FastMCP("production-rag")
 
 
 @mcp.tool()
-def search(query: str, top_k: int = 5) -> dict:
+def search(query: str, top_k: int = 10) -> dict:
     """Search the ingested corpus; returns cited snippets without generating an answer."""
     return mcp_search(query, top_k)
 
 
 @mcp.tool()
-def ask(question: str, top_k: int = 5) -> dict:
+def ask(question: str, top_k: int = 10) -> dict:
     """Answer a question with the corrective-RAG agent (routes, self-corrects, grounds with
     citations). Returns the answer, sources, route, and attempts."""
     return mcp_ask(question, top_k)

@@ -139,7 +139,7 @@ def test_chat_forwards_sources(client):
         mock_query.return_value = {"answer": "ok", "sources": [], "latency_ms": 1.0}
         response = client.post("/chat", json={"question": "q", "sources": ["only.pdf"]})
         assert response.status_code == 200
-        mock_query.assert_called_once_with("q", 5, ["only.pdf"], [])
+        mock_query.assert_called_once_with("q", 10, ["only.pdf"], [])
 
 
 def test_chat_rejects_bad_history_role(client):
@@ -161,7 +161,7 @@ def test_chat_forwards_history_and_returns_condensed(client):
         assert resp.status_code == 200
         assert resp.json()["condensed_question"] == "What is LoRA's cost?"
         mock_query.assert_called_once_with(
-            "its cost?", 5, None,
+            "its cost?", 10, None,
             [{"role": "user", "content": "What is LoRA?"},
              {"role": "assistant", "content": "LoRA is ... [1]"}],
         )

@@ -21,7 +21,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const chat = useChat();
   const [agent, setAgent] = useState(false);
   const [stream, setStream] = useState(true);
-  const [topK, setTopK] = useState(5);
+  const [topK, setTopK] = useState(10);
   const [scopeSources, setScopeSources] = useState<string[]>([]);
   const [focused, setFocused] = useState<CitationFocus | null>(null);
   const value = useMemo(

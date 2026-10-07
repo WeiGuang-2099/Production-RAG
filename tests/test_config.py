@@ -4,8 +4,9 @@ from app.config import Settings
 
 
 def test_default_settings():
-    """Test defaults with required API keys provided."""
+    """Test defaults with required API keys provided (ignoring any local .env)."""
     settings = Settings(
+        _env_file=None,
         LLM_API_KEY="sk-test",
         EMBEDDING_API_KEY="sk-test",
         COHERE_API_KEY="test-key",
@@ -15,7 +16,7 @@ def test_default_settings():
     assert settings.EMBEDDING_PROVIDER == "openai"
     assert settings.CHUNK_SIZE == 512
     assert settings.CHUNK_OVERLAP == 64
-    assert settings.TOP_K == 5
+    assert settings.TOP_K == 10
     assert settings.RERANK_TOP_K == 5
     assert settings.COLLECTION_NAME == "rag_docs"
     assert settings.API_KEY_HASH == ""

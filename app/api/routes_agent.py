@@ -23,7 +23,7 @@ class HistoryTurn(BaseModel):
 
 class AgentRequest(BaseModel):
     question: str
-    top_k: int = Field(default=5, ge=1, le=50)
+    top_k: int = Field(default=10, ge=1, le=50)
     sources: list[str] | None = None
     history: list[HistoryTurn] | None = None
 

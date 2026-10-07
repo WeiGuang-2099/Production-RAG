@@ -8,14 +8,14 @@ from app.guardrails.service import apply_output, check_input
 from app.ingestion.validation import validate_source
 
 
-def mcp_search(query: str, top_k: int = 5) -> dict:
+def mcp_search(query: str, top_k: int = 10) -> dict:
     blocked = check_input(query)
     if blocked:
         return {"error": "blocked by input guardrails", "patterns": blocked}
     return {"sources": retrieve_sources(query, top_k)}
 
 
-def mcp_ask(question: str, top_k: int = 5) -> dict:
+def mcp_ask(question: str, top_k: int = 10) -> dict:
     blocked = check_input(question)
     if blocked:
         return {"error": "blocked by input guardrails", "patterns": blocked}
