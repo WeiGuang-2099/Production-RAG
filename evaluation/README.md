@@ -59,7 +59,7 @@ Breakdown:
 | type | count | purpose |
 |---|---|---|
 | factual | 15 | single-paper lookup; baseline retrieval quality |
-| multi_hop | 10 | requires linking 2+ papers; tests graph / cross-doc reasoning |
+| multi_hop | 10 | multi-step questions, 6 of which span 2+ papers; tests cross-doc reasoning |
 | comparative | 8 | side-by-side analysis; tests synthesis |
 | numerical | 5 | specific numbers; tests precise retrieval |
 | unanswerable | 5 | answer NOT in corpus; tests refusal vs. hallucination |
@@ -89,9 +89,10 @@ python evaluation/run_eval.py --subset 5 --label smoke
 python evaluation/run_eval.py --label baseline
 ```
 
-Note: ingest may take several minutes depending on `GRAPH_EXTRACTOR` setting
-(LLM extraction is the dominant cost). Use `GRAPH_EXTRACTOR=none` for a
-faster first pass.
+Note: the ablation's `+graph` stage needs a graph built at ingest, and the
+shipped default is `GRAPH_EXTRACTOR=none`. Set `GRAPH_EXTRACTOR=llm` in the
+API's `.env` for this step to reproduce it (one LLM call per chunk, the
+dominant ingest cost); leave it at `none` for a faster first pass.
 
 ### `run_eval.py` flags
 
@@ -156,6 +157,7 @@ Metrics:
 - **MRR** — 1 / rank of the first relevant context (rewards ranking the right doc high).
 - **hit@k** — did any relevant paper make the top-k at all.
 
-The 5 `unanswerable` questions have no ground-truth papers and are excluded
-from these retrieval metrics. Reports are written to `results/`; see
-[`results/README.md`](results/README.md) for the table to fill in.
+The 5 `unanswerable` questions each list the paper they ask about in
+`source_papers`, so retrieval is scored on all 48 (the reports show `count` 48).
+Reports are written to `results/`; see [`results/README.md`](results/README.md)
+for the published tables.
