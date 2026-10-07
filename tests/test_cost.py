@@ -39,3 +39,7 @@ def test_usage_for_shape_and_values():
     assert u["output_tokens"] > 0
     assert u["cost_usd"] >= 0
     assert u["model"] == "gpt-4o"
+
+def test_price_prefix_prefers_the_longest_match():
+    # a dated gpt-4o-mini id must not be billed at gpt-4o rates
+    assert estimate_cost_usd(1_000_000, 0, "gpt-4o-mini-2024-07-18") == 0.15

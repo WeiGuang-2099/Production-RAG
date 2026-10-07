@@ -55,10 +55,11 @@ def count_tokens(text: str, model: str = "gpt-4o") -> int:
 def _price_for(model: str) -> tuple[float, float]:
     if model in PRICES:
         return PRICES[model]
-    # prefix match so versioned ids (gpt-4o-2024-08-06) resolve to gpt-4o
-    for key, price in PRICES.items():
-        if model and model.startswith(key):
-            return price
+    # Prefix match so versioned ids (gpt-4o-2024-08-06) resolve to gpt-4o; the longest
+    # key wins, so gpt-4o-mini-2024-07-18 gets the mini price, not gpt-4o's.
+    matches = [key for key in PRICES if model and model.startswith(key)]
+    if matches:
+        return PRICES[max(matches, key=len)]
     return (0.0, 0.0)
 
 
