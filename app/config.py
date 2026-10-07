@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     RERANKER_MODEL: str = "rerank-v3.5"
     COHERE_API_KEY: str = ""
 
-    # Graph
-    GRAPH_EXTRACTOR: str = "llm"
+    # Graph (opt-in: graph expansion lowered recall/MRR/hit in every eval ablation)
+    GRAPH_EXTRACTOR: str = "none"
 
     # Generation
     PROMPT_MODE: str = "grounded"

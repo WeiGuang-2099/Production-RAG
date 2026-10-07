@@ -235,7 +235,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `PROMPT_MODE` | grounded | grounded (cite + refuse) / basic |
 | `RETRIEVAL_MODE` | hybrid | hybrid (vector + BM25 RRF) / dense |
 | `QUERY_TRANSFORM` | none | none / multi_query / hyde |
-| `GRAPH_EXTRACTOR` | llm | llm / nlp / none |
+| `GRAPH_EXTRACTOR` | none | none / llm / nlp (graph expansion is opt-in; it lowered retrieval scores in the eval) |
 | `CACHE_ENABLED` | false | semantic short-circuit cache |
 | `REDIS_URL` | - | Redis backend for the semantic cache (empty = in-process; falls back on error) |
 | `KEYWORD_BACKEND` | local | keyword store: local (rank_bm25, zero-dep) / opensearch (incremental, shared) |

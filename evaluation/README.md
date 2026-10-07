@@ -89,9 +89,10 @@ python evaluation/run_eval.py --subset 5 --label smoke
 python evaluation/run_eval.py --label baseline
 ```
 
-Note: ingest may take several minutes depending on `GRAPH_EXTRACTOR` setting
-(LLM extraction is the dominant cost). Use `GRAPH_EXTRACTOR=none` for a
-faster first pass.
+Note: the ablation's `+graph` stage needs a graph built at ingest, and the
+shipped default is `GRAPH_EXTRACTOR=none`. Set `GRAPH_EXTRACTOR=llm` in the
+API's `.env` for this step to reproduce it (one LLM call per chunk, the
+dominant ingest cost); leave it at `none` for a faster first pass.
 
 ### `run_eval.py` flags
 

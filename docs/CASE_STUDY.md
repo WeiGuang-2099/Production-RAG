@@ -196,7 +196,7 @@ the local indexes.
 ```bash
 docker-compose up -d qdrant
 python evaluation/corpus/download_papers.py
-python evaluation/ingest_corpus.py --force
+GRAPH_EXTRACTOR=llm python evaluation/ingest_corpus.py --force   # graph is opt-in
 python evaluation/run_ablation.py --k 5
 PROMPT_MODE=basic    python evaluation/run_eval.py --label basic
 PROMPT_MODE=grounded python evaluation/run_eval.py --label grounded
