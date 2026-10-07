@@ -3,6 +3,7 @@ from langchain_core.documents import Document
 from app.core.prompts import (
     BASIC_PROMPT,
     GROUNDED_PROMPT,
+    STRICT_PROMPT,
     format_context,
     select_prompt,
 )
@@ -21,8 +22,12 @@ def test_select_prompt_unknown_defaults_to_grounded():
     assert select_prompt("nonsense") == GROUNDED_PROMPT
 
 
-def test_both_prompts_have_required_variables():
-    for tmpl in (BASIC_PROMPT, GROUNDED_PROMPT):
+def test_select_prompt_strict():
+    assert select_prompt("strict") == STRICT_PROMPT
+
+
+def test_all_prompts_have_required_variables():
+    for tmpl in (BASIC_PROMPT, GROUNDED_PROMPT, STRICT_PROMPT):
         assert "{context}" in tmpl
         assert "{question}" in tmpl
 
@@ -66,3 +71,18 @@ def test_format_context_handles_missing_source_metadata():
     out = format_context(docs)
     assert "[1]" in out
     assert "no source meta" in out
+
+
+def test_grounded_prompt_answers_partly_and_names_the_gap():
+    # Over-refusal fix: a partial answer must be allowed, with what is missing stated.
+    lowered = GROUNDED_PROMPT.lower()
+    assert "only part of the question" in lowered
+    assert "does not state" in lowered
+
+
+def test_strict_prompt_keeps_the_all_or_nothing_refusal():
+    # The pre-fix prompt stays selectable so before/after evals stay reproducible.
+    lowered = STRICT_PROMPT.lower()
+    assert "does not contain enough information" in lowered
+    assert "cannot answer" in lowered
+

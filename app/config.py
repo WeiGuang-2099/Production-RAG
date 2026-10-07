@@ -139,8 +139,8 @@ class Settings(BaseSettings):
     @field_validator("PROMPT_MODE")
     @classmethod
     def validate_prompt_mode(cls, v: str) -> str:
-        if v not in ("basic", "grounded"):
-            raise ValueError(f"PROMPT_MODE must be 'basic' or 'grounded', got '{v}'")
+        if v not in ("basic", "grounded", "strict"):
+            raise ValueError(f"PROMPT_MODE must be 'basic', 'grounded' or 'strict', got '{v}'")
         return v
 
     @field_validator("RETRIEVAL_MODE")

@@ -241,3 +241,7 @@ def test_llm_temperature_rejects_out_of_range():
     with pytest.raises(ValueError, match="LLM_TEMPERATURE"):
         _settings(LLM_TEMPERATURE=3)
 
+
+def test_prompt_mode_accepts_strict():
+    assert _settings(PROMPT_MODE="strict").PROMPT_MODE == "strict"
+
