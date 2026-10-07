@@ -22,15 +22,19 @@ _graph_store_cache: dict[tuple, object] = {}
 def get_llm(model: str | None = None):
     settings = get_settings()
     model = model or settings.LLM_MODEL
-    key = (settings.LLM_PROVIDER, model)
+    temperature = getattr(settings, "LLM_TEMPERATURE", None)
+    key = (settings.LLM_PROVIDER, model, temperature)
     if key in _llm_cache:
         return _llm_cache[key]
+    # Only pass a temperature when one is configured, so None means the provider default.
+    extra = {} if temperature is None else {"temperature": temperature}
     if settings.LLM_PROVIDER == "openai":
         instance = ChatOpenAI(
             model=model,
             api_key=settings.LLM_API_KEY or None,
             base_url=settings.LLM_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
+            **extra,
         )
     elif settings.LLM_PROVIDER == "anthropic":
         instance = ChatAnthropic(
@@ -38,6 +42,7 @@ def get_llm(model: str | None = None):
             api_key=settings.LLM_API_KEY or None,
             base_url=settings.LLM_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
+            **extra,
         )
     else:
         raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")

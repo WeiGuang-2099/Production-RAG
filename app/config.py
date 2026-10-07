@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     LLM_MODEL_FAST: str = "gpt-4o-mini"
     LLM_FALLBACK_MODEL: str = "gpt-4o-mini"   # "" disables fallback
     LLM_TIMEOUT: int = 30
+    # 0 keeps answers (and refusals) repeatable; blank/"default" leaves it to the provider
+    LLM_TEMPERATURE: float | None = 0.0
 
     # Embedding
     EMBEDDING_PROVIDER: str = "openai"
@@ -90,6 +92,20 @@ class Settings(BaseSettings):
     def validate_llm_provider(cls, v: str) -> str:
         if v not in ("openai", "anthropic"):
             raise ValueError(f"LLM_PROVIDER must be 'openai' or 'anthropic', got '{v}'")
+        return v
+
+    @field_validator("LLM_TEMPERATURE", mode="before")
+    @classmethod
+    def parse_llm_temperature(cls, v):
+        if isinstance(v, str) and v.strip().lower() in ("", "none", "default"):
+            return None
+        return v
+
+    @field_validator("LLM_TEMPERATURE")
+    @classmethod
+    def validate_llm_temperature(cls, v: float | None) -> float | None:
+        if v is not None and not 0.0 <= v <= 2.0:
+            raise ValueError(f"LLM_TEMPERATURE must be between 0 and 2, got {v}")
         return v
 
     @field_validator("LLM_TIMEOUT")

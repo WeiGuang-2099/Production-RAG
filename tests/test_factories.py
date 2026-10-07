@@ -290,3 +290,25 @@ def test_get_graph_store_cached(tmp_path):
         g2 = get_graph_store()
         assert g1 is g2
     clear_caches()
+
+def _openai_settings(mock_settings, temperature):
+    mock_settings.return_value.LLM_PROVIDER = "openai"
+    mock_settings.return_value.LLM_MODEL = "gpt-4o"
+    mock_settings.return_value.LLM_API_KEY = "sk-test"
+    mock_settings.return_value.LLM_BASE_URL = None
+    mock_settings.return_value.LLM_TIMEOUT = 30
+    mock_settings.return_value.LLM_TEMPERATURE = temperature
+
+
+def test_get_llm_passes_configured_temperature():
+    with patch("app.core.factories.ChatOpenAI") as mock_cls,          patch("app.core.factories.get_settings") as mock_settings:
+        _openai_settings(mock_settings, 0.0)
+        get_llm()
+        assert mock_cls.call_args.kwargs["temperature"] == 0.0
+
+
+def test_get_llm_leaves_temperature_to_provider_when_unset():
+    with patch("app.core.factories.ChatOpenAI") as mock_cls,          patch("app.core.factories.get_settings") as mock_settings:
+        _openai_settings(mock_settings, None)
+        get_llm()
+        assert "temperature" not in mock_cls.call_args.kwargs

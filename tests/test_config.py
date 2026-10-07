@@ -222,3 +222,22 @@ def test_invalid_chat_history_max_turn_chars():
             EMBEDDING_API_KEY="t",
             COHERE_API_KEY="t",
         )
+
+def _settings(**kw):
+    return Settings(LLM_API_KEY="sk-test", EMBEDDING_API_KEY="sk-test", COHERE_API_KEY="k", **kw)
+
+
+def test_llm_temperature_defaults_to_zero():
+    assert _settings().LLM_TEMPERATURE == 0.0
+
+
+@pytest.mark.parametrize("raw", ["", "none", "default"])
+def test_llm_temperature_blank_means_provider_default(monkeypatch, raw):
+    monkeypatch.setenv("LLM_TEMPERATURE", raw)
+    assert _settings().LLM_TEMPERATURE is None
+
+
+def test_llm_temperature_rejects_out_of_range():
+    with pytest.raises(ValueError, match="LLM_TEMPERATURE"):
+        _settings(LLM_TEMPERATURE=3)
+
