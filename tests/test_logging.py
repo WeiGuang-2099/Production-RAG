@@ -55,10 +55,11 @@ def test_exceptions_render_inside_the_json_line(log_lines):
     assert "ValueError: boom" in line["exception"]
 
 
-def test_http_client_request_chatter_is_suppressed(log_lines):
-    logging.getLogger("httpx").info("HTTP Request: POST https://api.openai.com/v1/embeddings")
+@pytest.mark.parametrize("name", ["httpx", "httpx2", "opensearch"])
+def test_http_client_request_chatter_is_suppressed(log_lines, name):
+    logging.getLogger(name).info("HTTP Request: POST https://api.openai.com/v1/embeddings")
 
-    assert not [ln for ln in log_lines() if ln.get("logger") == "httpx"]
+    assert not [ln for ln in log_lines() if ln.get("logger") == name]
 
 
 def test_middleware_request_id_reaches_route_logs(log_lines):

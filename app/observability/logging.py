@@ -11,8 +11,9 @@ from starlette.responses import Response
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
-# Third-party loggers that narrate every outbound HTTP call at INFO.
-_NOISY_LOGGERS = ("httpx", "httpcore")
+# Client libraries that log every outbound HTTP call at INFO (httpx2/httpcore2
+# are what newer OpenAI SDKs resolve to; opensearch-py logs each request).
+_NOISY_LOGGERS = ("httpx", "httpcore", "httpx2", "httpcore2", "opensearch")
 _HANDLER_NAME = "app-json"
 
 
