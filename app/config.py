@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     LLM_MODEL_FAST: str = "gpt-4o-mini"
     LLM_FALLBACK_MODEL: str = "gpt-4o-mini"   # "" disables fallback
     LLM_TIMEOUT: int = 30
+    # 0 keeps answers (and refusals) repeatable; blank/"default" leaves it to the provider
+    LLM_TEMPERATURE: float | None = 0.0
 
     # Embedding
     EMBEDDING_PROVIDER: str = "openai"
@@ -48,7 +50,11 @@ class Settings(BaseSettings):
     # Retrieval
     RETRIEVAL_MODE: str = "hybrid"
     QUERY_TRANSFORM: str = "none"
-    TOP_K: int = 5
+    # Candidates fetched before rerank, and passages kept for the answer. With TOP_K equal to
+    # RERANK_TOP_K the reranker can only reorder. On the answer-contract eval, 10 candidates cut
+    # the strict prompt's refusals from about a third to a fifth; the grounded prompt refused
+    # under 5% at 5 or 10 (evaluation/results/README.md).
+    TOP_K: int = 10
     RERANK_TOP_K: int = 5
 
     # Keyword backend
@@ -92,6 +98,20 @@ class Settings(BaseSettings):
             raise ValueError(f"LLM_PROVIDER must be 'openai' or 'anthropic', got '{v}'")
         return v
 
+    @field_validator("LLM_TEMPERATURE", mode="before")
+    @classmethod
+    def parse_llm_temperature(cls, v):
+        if isinstance(v, str) and v.strip().lower() in ("", "none", "default"):
+            return None
+        return v
+
+    @field_validator("LLM_TEMPERATURE")
+    @classmethod
+    def validate_llm_temperature(cls, v: float | None) -> float | None:
+        if v is not None and not 0.0 <= v <= 2.0:
+            raise ValueError(f"LLM_TEMPERATURE must be between 0 and 2, got {v}")
+        return v
+
     @field_validator("LLM_TIMEOUT")
     @classmethod
     def validate_llm_timeout(cls, v: int) -> int:
@@ -123,8 +143,8 @@ class Settings(BaseSettings):
     @field_validator("PROMPT_MODE")
     @classmethod
     def validate_prompt_mode(cls, v: str) -> str:
-        if v not in ("basic", "grounded"):
-            raise ValueError(f"PROMPT_MODE must be 'basic' or 'grounded', got '{v}'")
+        if v not in ("basic", "grounded", "strict"):
+            raise ValueError(f"PROMPT_MODE must be 'basic', 'grounded' or 'strict', got '{v}'")
         return v
 
     @field_validator("RETRIEVAL_MODE")

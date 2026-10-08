@@ -88,6 +88,7 @@ def run_agent(
         "usage": final.get("usage", {}),
         "route": final.get("route", ""),
         "attempts": final.get("attempts", 0),
+        "query": final.get("query", question),
     }, cq)
 
 

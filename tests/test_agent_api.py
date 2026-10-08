@@ -52,7 +52,7 @@ def test_agent_forwards_sources(client):
                                  "usage": {}, "route": "retrieve", "attempts": 0}
         resp = client.post("/agent", json={"question": "q", "sources": ["only.pdf"]})
         assert resp.status_code == 200
-        mock_run.assert_called_once_with("q", 5, ["only.pdf"], [])
+        mock_run.assert_called_once_with("q", 10, ["only.pdf"], [])
 
 
 def test_agent_rejects_bad_history_role(client):
@@ -72,4 +72,4 @@ def test_agent_forwards_history_and_returns_condensed(client):
         })
         assert resp.status_code == 200
         assert resp.json()["condensed_question"] == "standalone?"
-        mock_run.assert_called_once_with("f?", 5, None, [{"role": "user", "content": "x"}])
+        mock_run.assert_called_once_with("f?", 10, None, [{"role": "user", "content": "x"}])

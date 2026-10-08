@@ -1,5 +1,6 @@
 import logging
 import pickle
+import re
 import threading
 from pathlib import Path
 
@@ -9,8 +10,13 @@ from rank_bm25 import BM25Okapi
 logger = logging.getLogger(__name__)
 
 
+# 1 = lower().split(), which kept punctuation glued to words ("bert?" never matched "bert");
+# 2 = lowercase word tokens. A pickle built with another version is re-tokenized on load.
+TOKENIZER_VERSION = 2
+
+
 def _tokenize(text: str) -> list[str]:
-    return text.lower().split()
+    return re.findall(r"\w+", text.lower())
 
 
 class BM25Store:
@@ -110,6 +116,7 @@ class BM25Store:
                     "documents": docs,
                     "tokenized_corpus": corpus,
                     "bm25": bm25,
+                    "tokenizer_version": TOKENIZER_VERSION,
                 }, f)
             self._signature = self._index_signature()
             logger.debug("BM25 index saved: %d documents", len(docs))
@@ -123,8 +130,15 @@ class BM25Store:
         try:
             with open(path, "rb") as f:
                 data = pickle.load(f)
-            self._state = (data["documents"], data.get("tokenized_corpus", []), data["bm25"])
+            docs = data["documents"]
+            if data.get("tokenizer_version") != TOKENIZER_VERSION and docs:
+                corpus = [_tokenize(doc.page_content) for doc in docs]
+                self._state = (docs, corpus, BM25Okapi(corpus))
+                self._save()
+                logger.info("BM25 index re-tokenized to version %d: %d documents", TOKENIZER_VERSION, len(docs))
+                return
+            self._state = (docs, data.get("tokenized_corpus", []), data["bm25"])
             self._signature = self._index_signature()
-            logger.info("BM25 index loaded: %d documents", len(data["documents"]))
+            logger.info("BM25 index loaded: %d documents", len(docs))
         except Exception as exc:
             logger.error("Failed to load BM25 index: %s", exc)

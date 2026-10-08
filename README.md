@@ -9,14 +9,20 @@ guardrails, an MCP server and an evaluation harness that measures what each retr
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-300%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-346%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-> **Built test-first, then measured with live OpenAI and Cohere calls.** The eval surfaced 3 bugs
-> the mocked unit tests missed, and showed that RAGAS faithfulness and answer relevancy score a
-> refusal as zero, right or wrong, so they cannot be the only yardstick for a cite-or-refuse system.
+> **Built test-first, then measured with live OpenAI and Cohere calls.** An answer-contract eval
+> found the shipped configuration refusing about a third of answerable questions. Choosing the
+> passages from 10 candidates instead of 5 cut that to about a fifth under the same all-or-nothing
+> refusal rule; a prompt that answers in part and names what is missing cut it to 2 of 43, the same
+> in two sessions, while all 27 questions the documents cannot answer were still declined in every
+> run. Live runs also caught bugs the mocked tests could not, from a reranker that failed silently
+> twice (the harness now stops on a failed rerank call) to a Compose stack that never started.
 > → [Read the case study](docs/CASE_STUDY.md).
+
+![Demo: a cited answer and its source passage, a follow-up rewritten into a standalone question, a question the documents cannot answer, and the Agent mode trace](docs/screenshots/demo.gif)
 
 ## The problem it targets
 
@@ -26,29 +32,37 @@ plain "not in the documents" when the documents do not cover the question. The d
 a confident wrong answer costs more than no answer.
 
 Designed for one team's internal Q&A over curated PDF, Markdown or web pages with extractable text
-(no OCR, no Office formats). Not a fit yet for open-ended chat, for answers that must combine several
-documents (it refused 3 of the 7 test questions whose answer spans two or more papers), or for
-non-English content (untested; the default keyword index splits on spaces and the guardrail patterns
-are English).
+(no OCR, no Office formats). Not a fit yet for open-ended chat or non-English content (untested;
+the default keyword index and the guardrail patterns are English-oriented). Answers that combine
+several documents work but are weaker than single-paper ones: of the 7 test questions whose answer
+spans two or more papers, the default configuration answered 6 in every pass, 4 of them fully
+correct (57% of these answers judged correct and 14% refused, against 72-74% and 3% for
+single-paper questions).
 
 **Status:** runs as a Docker Compose stack (API, Qdrant, Redis, OpenSearch) and has been evaluated
-offline only: 48 hand-written questions plus 18 follow-ups over public ML papers standing in for a
-team's documents (live OpenAI and Cohere calls, mostly single runs, 2026-06-22 to 2026-07-12). It has
-not served real users; see [what a production rollout would still need](#what-a-production-rollout-would-still-need).
+offline only: 48 hand-written questions, 22 near-miss questions the papers cannot answer and 18
+follow-ups, over public ML papers standing in for a team's documents (live OpenAI and Cohere calls,
+2026-06-22 to 2026-10-08). It has not served real users; see
+[what a production rollout would still need](#what-a-production-rollout-would-still-need).
 
 | What a team needs | What is built, and what was measured | Trade-off / limit |
 | --- | --- | --- |
-| **Answers a reader can check** | The default prompt asks for an `[n]` citation after each claim; in the UI, clicking one highlights its passage in a side panel | Citations are requested, not verified, and the panel shows only a passage's first 400 characters, which can cut off the supporting text |
-| **"Not in the documents" instead of a guess** | In Standard mode (the UI default) it refused all 5 test questions the documents cannot answer, with 6 and with 30 papers indexed | Coverage: it also refused 10-15 of the 43 answerable questions (inferred from RAGAS scores; the harness does not save answers) |
-| **The right document among look-alikes** | With 24 look-alike papers added (4.6x the chunks), dense retrieval still put a relevant paper in the top 5 for all 48 questions but ranked it lower (MRR, 1.0 when a relevant paper always ranks first: 0.979 → 0.844); reranking recovered part of it (0.877) | One Cohere call and ~0.3s per question |
+| **Answers a reader can check** | The default prompt asks for an `[n]` citation after each claim; in the UI, clicking one highlights its passage in a side panel. In the eval every answer carried a citation, all pointing at a returned passage | Citations are requested, not verified, and the panel shows only a passage's first 400 characters, which can cut off the supporting text |
+| **"Not in the documents" instead of a guess** | In Standard mode (the UI default) it declined all 27 test questions the documents cannot answer, in every run, and refused 2 of 43 answerable ones (4.7%, the same two in two sessions; 31.8% as first shipped; see [Evaluation](#evaluation)) | The 2 it still refuses, in every pass, are one cross-paper comparison (the other 6 multi-paper questions are answered) and one question the paper answers with two tried values rather than one; about a quarter of answers are judged only partially correct against the reference |
+| **The right document among look-alikes** | With 24 look-alike papers added (4.6x the chunks), dense retrieval still put a relevant paper in the top 5 for all 48 questions but ranked it lower (MRR, 1.0 when a relevant paper always ranks first: 0.979 → 0.844); reranking won back little of it (0.862) | One Cohere call and ~0.3s per question; keyword search slightly hurts here (one of 48 questions lost its paper from the top 5), likely because look-alike papers repeat names like "BERT" |
 | **Follow-up questions** | Follow-ups such as "what about its training cost?" are rewritten into standalone questions first: the right paper reached the top 5 for all 18 test follow-ups, up from 14 as typed | One gpt-4o-mini call per turn that carries chat history (in the UI, every turn after the first): ~0.85s median, 4.2s for the slowest of 18 |
-| **A known price and speed per answer** | Each response reports tokens and an estimated cost for its answer call and any follow-up rewrite (\$0.00405 and \$0.00649 for the two gpt-4o answers in the screenshots); full answers took ~2.3-2.6s median, and retrieval alone later fell from ~1.4s to ~0.64s with identical scores | An undercount, not a bill: embeddings, reranking, the agent's route/grade/rewrite calls, opt-in multi-query/HyDE rewrites and indexing are not priced, and a cache hit repeats the original figures; no load test or measured cost per 1,000 questions yet |
+| **A known price and speed per answer** | Measured over every model, rerank and embedding call: \$8.47 per 1,000 questions in Standard mode (\$10.77 in Agent mode), with full answers at 1.3s median and 2.7-3.6s p95 across two sessions, 4 questions in flight | Each response still reports only its answer call (plus any follow-up rewrite), and a cache hit repeats the original figures; no load test yet |
 
-Measurement conditions: the retrieval and follow-up rows scored the top 5 of 10 retrieved candidates
-(all 10 reranked where reranking was on), with the local BM25 store (the API and UI retrieve 5 by
-default; Compose uses OpenSearch). The refusal, RAGAS and full-answer latency runs had graph
-expansion on, the default at the time. Agent mode, which can answer
-a question it judges general without the documents, was not evaluated.
+Measurement conditions: the contract numbers are 3 passes per question at temperature 0 with the
+shipped defaults (10 candidates reranked to 5, local BM25, graph off) on the 6-paper corpus,
+labeled by a gpt-4o judge, from runs on 2026-10-07 and 2026-10-08 in which every rerank call
+succeeded (the five reranker-off runs of 2026-10-07 are reported separately). The exception is the
+31.8% as-first-shipped figure: provider-default temperature, 5 candidates, the strict prompt and
+the old tokenizer. Latency was measured with 4 questions in flight (Agent mode: one at a time). The
+look-alike and follow-up rows score the top 5 of 10 reranked candidates on the local BM25 store
+(Compose uses OpenSearch); the follow-up row comes from a 2026-07-12 run, before the BM25 tokenizer
+fix.
+Earlier RAGAS runs (June-July) had graph expansion on.
 
 ## Why this project is different
 
@@ -58,11 +72,12 @@ measured and improved, listed below; what it still lacks for production is
 
 - **Answers are grounded, cited, and willing to refuse.** The default prompt tells the model to
   answer only from retrieved context, cite sources as `[n]`, and reply "I cannot answer this from
-  the provided documents" when the context falls short (Agent mode can route general questions
-  around retrieval). The eval set includes an `unanswerable` bucket that specifically tests this.
+  the provided documents" when nothing in the context answers, saying what is missing when only
+  part is covered (Agent mode can route general questions around retrieval). 27 unanswerable eval
+  questions test this.
 - **Quality is measured, not asserted.** A retrieval ablation (`baseline → +BM25 → +rerank →
-  +graph`) reports recall@k / MRR / hit@k with no LLM judge; RAGAS adds LLM-judged end-to-end
-  scores, with a blind spot for refusals. See [Evaluation](#evaluation).
+  +graph`) reports recall@k / MRR / hit@k with no LLM judge, and an answer-contract eval checks
+  that it answers what the documents support and refuses the rest. See [Evaluation](#evaluation).
 - **Operational basics are built in**: token streaming, per-answer token/cost estimates, an
   opt-in semantic cache, bearer-token auth, rate limiting, structured JSON app logs with request
   IDs, liveness/readiness endpoints, path-traversal-safe ingestion, and graceful degradation when a
@@ -156,107 +171,136 @@ The SPA calls the backend directly, so set the backend's `CORS_ORIGINS` to the S
 (`http://localhost:5173` in dev). Auth is all-or-nothing: with `API_KEY_HASH` unset, as for an
 open demo, anyone can also ingest files or URLs, remove records and spend your API budget.
 
-**Chat** — grounded answer with `[n]` citations linked to a source panel:
+**Chat:** a grounded answer with `[n]` citations linked to a source panel.
 
 ![Chat workbench: grounded, cited answers with a linked source inspector](docs/screenshots/chat.png)
 
-**Agent mode** — the corrective-RAG trace (`route → retrieve → grade → generate`) is shown above
-the answer, with the answer call's tokens and estimated cost below it:
+**Agent mode:** the corrective-RAG trace (`route → retrieve → grade → generate`) above the answer,
+with the answer call's latency, tokens and estimated cost below it.
 
 ![Agent mode: corrective-RAG trace with token and cost accounting as metric chips](docs/screenshots/agent.png)
 
 ## Evaluation
 
-Evaluation is **numbers, not adjectives** — and the story behind the numbers is the
-[**case study**](docs/CASE_STUDY.md): what running the harness against real keys actually taught
-me, including three bugs the mocked unit tests missed and why standard RAGAS misreads a
-cite-or-refuse system. **Start there**; where the two differ, this README is current.
+Evaluation is numbers, not adjectives. The [case study](docs/CASE_STUDY.md) tells the story behind
+them: what running the harness against live APIs taught me, the bugs that only showed up that way,
+and how a refusal problem was traced to too few retrieval candidates and an all-or-nothing refusal
+rule. Harness details are in [`evaluation/README.md`](evaluation/README.md), and every report is in
+[`evaluation/results/`](evaluation/results/README.md).
 
-The corpus is 6 classic ML papers from arXiv and the dataset is 48 hand-written questions across
-6 types (factual, multi-hop, comparative, numerical, unanswerable, long-tail); the harness itself
-is documented in [`evaluation/README.md`](evaluation/README.md).
+The corpus is 6 classic ML papers from arXiv (479 chunks). The questions are 48 hand-written ones
+across 6 types, 22 near-miss questions the papers cannot answer, and 18 follow-ups for multi-turn.
 
 ```bash
 python evaluation/corpus/download_papers.py        # fetch the 6 papers
 # ingest in-process (needs only Qdrant); llm builds the graph the +graph row needs
 GRAPH_EXTRACTOR=llm python evaluation/ingest_corpus.py
 
-# Cheap, deterministic retrieval ablation (no LLM judge):
-python evaluation/run_ablation.py --k 5
-
-# End-to-end RAGAS, grounded vs basic prompt (the published runs had graph expansion on;
-# prefix GRAPH_EXTRACTOR=llm to match them):
-PROMPT_MODE=basic    python evaluation/run_eval.py --label basic
-PROMPT_MODE=grounded python evaluation/run_eval.py --label grounded
+python evaluation/run_contract.py --label final    # answer vs refuse: 70 questions x 3 passes
+python evaluation/run_ablation.py --k 5            # deterministic retrieval ablation, no LLM judge
 ```
 
-Real results (2026-06-22, 6-paper corpus, 479 chunks) — full breakdown and honest
-interpretation in [`evaluation/results/`](evaluation/results/README.md).
+**Answer contract.** Does it answer what the documents support and refuse what they do not?
+`run_contract.py` runs 70 questions (43 answerable, 27 unanswerable) in three passes per run, saves
+every answer, and has a gpt-4o judge label refusals, correctness against the reference, and
+fabricated answers. Standard mode, reranker on (2026-10-07 and 2026-10-08):
 
-**Retrieval ablation** — recall@5 over the top 5 of 10 retrieved candidates (API/UI default: 5);
-retrieval-only latency, including the embedding call, from before the 2026-07-10 speed-up:
+| run | prompt | temperature | candidates | BM25 tokenizer | answerable refused | correct | wrong | answer/refusal flips |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A, as shipped | strict | provider default | 5 | old | 31.8% | 55.8% | 2.3% | 15.7% |
+| B | strict | 0 | 5 | old | 32.6% | 53.5% | 0.0% | 0.0% |
+| D | strict | 0 | 10 | fixed | 20.9% | 62.0% | 0.0% | 8.6% |
+| E (**the default now**) | partial-answer | 0 | 10 | fixed | 4.7% | 69.8% | 0.0% | 0.0% |
+| E2, E a day later | partial-answer | 0 | 10 | fixed | 4.7% | 71.3% | 0.8% | 0.0% |
+
+All 27 unanswerable questions were declined in every run.
+
+- **Temperature 0** cut answer/refusal flips from 15.7% (A) to 0% (B), not the refusals (31.8% →
+  32.6%). The strict prompt still flipped on 4.3-8.6% of questions in its other temperature-0
+  runs, the partial-answer prompt on 0-1.4%.
+- **Retrieval depth helped only the strict prompt**, which refuses unless the context holds "enough
+  information": 10 candidates instead of 5 cut its refusals by 10-12 points with either BM25
+  tokenizer (32.6% and 31.0% at 5, 20.9% and 20.9% at 10; one run of 3 passes per cell), while the
+  tokenizer fix moved them by 0-1.6.
+- **The partial-answer prompt is the fix.** It answers part of a question and names what is
+  missing, and refuses only when nothing in the context answers. On identical retrieval (D → E)
+  it cut refusals from 9 to 2 of 43 per pass, and it refused 1-2 of 43 at either depth. E2
+  retrieved the same passages in the same order as E for all 210 answers and refused the same two
+  questions.
+- **A silent reranker outage.** Five runs on 2026-10-07 answered from unranked passages after the
+  Cohere key hit its billing cap. At 10 candidates all four refused more than with the reranker
+  (E 9.3% vs 4.7%, D 29.5% vs 20.9%; one unplanned run each). The harness now stops a run on a
+  failed rerank call.
+
+A second judge (gpt-4o-mini, re-labeling E's answers) agreed on every refusal and fabrication
+label but on only 81% of "correct" vs "partially correct" calls, so the correct rate depends on
+the judge. Every run is in the [results table](evaluation/results/README.md).
+
+Agent mode, run in the same session as E2, matched it on quality: 4.7% refused (the same two
+questions), 71.3% correct, no wrong answers (E2: one, in one pass), all 27 unanswerable declined
+in every pass. It took 2.6x the latency (p50 3.4s vs 1.3s) and 1.27x the cost (\$10.77 vs \$8.47
+per 1,000 questions); on every unanswerable question it spent both query rewrites (7 model calls
+and 3 reranks) before refusing. It stays opt-in.
+
+**Retrieval ablation.** recall@5 over the top 5 of 10 retrieved candidates, current code
+(2026-10-07, after the tokenizer fix); retrieval-only latency including the embedding call:
 
 | stage | recall@5 | mrr | hit@5 | p50_ms | p95_ms |
 | --- | --- | --- | --- | --- | --- |
-| baseline (dense)    | 0.934 | 0.979 | 1.000 | 1133 | 1783 |
-| +bm25 (hybrid RRF)  | **0.972** | 0.958 | 1.000 | 1039 | 1640 |
-| +rerank (Cohere)    | 0.962 | **0.979** | 1.000 | 1747 | 2067 |
-| +graph              | 0.903 | 0.927 | 0.958 | 1773 | 2185 |
+| baseline (dense)    | 0.934 | 0.979 | 1.000 | 144 | 172 |
+| +bm25 (hybrid RRF)  | **0.972** | 0.965 | 1.000 | 155 | 178 |
+| +rerank (Cohere)    | 0.962 | **0.990** | 1.000 | 452 | 755 |
+| +graph              | 0.910 | 0.938 | 0.958 | 457 | 599 |
 
-Honest read: on six topically distinct papers dense retrieval is already
-near-ceiling (baseline hit@5 = 1.000), so the ablation measures *which knob moves
-what*. **+BM25 maximizes recall@5** (0.934 → 0.972, no latency cost) but its RRF
-reshuffle nudges MRR to 0.958; **+rerank trades a hair of recall (0.962) to restore
-MRR to 0.979** — the single best chunk first — for ~0.7s of added p50 in this run (0.30-0.36s in
-every later run); **+graph actively hurts** (recall 0.903, hit@5 0.958): its hits are
-extracted triples that no metric or reader can trace to a document, and each one in the top 5
-pushes out a citable chunk. So hybrid+rerank is the shipped default, and graph expansion is off by default.
+On six topically distinct papers dense retrieval is already near the ceiling (hit@5 = 1.000), so
+the ablation shows which knob moves what. BM25 lifts recall@5 (0.934 → 0.972), and reranking puts
+the best chunk first (MRR 0.990) for about 0.3s. Graph expansion lowers every metric: its hits are
+extracted triples that cite no document, and each one in the top 5 pushes out a citable chunk. So
+hybrid + rerank is the default and graph expansion is off.
 
-**Scale robustness** — a second corpus adds 24 *adversarial* distractor papers
-(RoBERTa/ALBERT vs BERT, DPR/FiD vs RAG, QLoRA vs LoRA, ...), growing the index
-4.6x to 2,194 chunks with the same 48 questions. Recall holds (0.934, hit@5
-1.000) but **ranking degrades** (MRR 0.979 → 0.844) — and the reranker becomes
-the highest-value component, roughly doubling its MRR contribution while BM25's
-recall edge nearly vanishes. Paired tables and the honest read in
+**Scale robustness.** A second corpus adds 24 adversarial look-alike papers (RoBERTa/ALBERT vs
+BERT, DPR/FiD vs RAG, QLoRA vs LoRA, ...), growing the index 4.6x to 2,194 chunks with the same 48
+questions. Dense recall holds (0.934, hit@5 1.000) but ranking degrades (MRR 0.979 → 0.844).
+Reranking is the only stage that beats dense retrieval on MRR at both sizes (0.990 and 0.862).
+With keyword matching fixed, BM25 slightly hurts at 30 papers (recall@5 0.924 vs 0.934; one of 48
+questions has no relevant paper left in the top 5), likely because look-alike papers repeat names
+like "BERT". Paired tables in
 [`evaluation/results/`](evaluation/results/README.md).
 
-**Latency** — caching the stores (Qdrant connection, BM25 index, graph) and running the
-retrieval legs in parallel is score-neutral by construction (identical RRF inputs; verified
-per stage on both corpora) and roughly halves retrieval latency across the board — p50
-~1.4s → ~0.64s for the full retrieval path, with p95 down 1.8-3x. The per-query BM25 unpickle
-grew with the corpus, so store caching also removes a scaling liability. With
-`CACHE_ENABLED=true`, repeat questions to `POST /chat` short-circuit through the semantic cache
-(Redis-backed when `REDIS_URL` is set) in ~0.2s:
-before/after p50/p95 tables in [`evaluation/results/`](evaluation/results/README.md).
+**Latency.** Caching the stores (Qdrant connection, BM25 index, graph) and running the retrieval
+legs in parallel is score-neutral by construction (identical RRF inputs; verified per stage on
+both corpora) and roughly halved retrieval latency (2026-07-10): p50 ~1.4s → ~0.64s for the full
+retrieval path, with p95 down 1.8-3x. The per-query BM25 unpickle grew with the corpus, so store
+caching also removes a scaling liability. With `CACHE_ENABLED=true`, repeat questions to
+`POST /chat` short-circuit through the semantic cache (Redis-backed when `REDIS_URL` is set) in
+~0.2s. Before/after tables in [`evaluation/results/`](evaluation/results/README.md).
 
-**Keyword backend** — swapping the local `rank_bm25` store for OpenSearch (standard analyzer)
-tests whether the naive `lower().split()` tokenization caused BM25's vanishing recall edge at
-30-paper scale: it did not — the edge stays gone (+0.007 local vs +0.000 OpenSearch over the
-dense baseline), so the vanishing edge is a property of the corpus at scale, not a tokenization
-artifact. Paired local-vs-OpenSearch tables in
-[`evaluation/results/`](evaluation/results/README.md).
+**Keyword backend.** Swapping the local `rank_bm25` store for OpenSearch (standard analyzer) tested
+whether the old `lower().split()` tokenizer caused BM25's vanishing recall edge at 30 papers. It
+did not: the edge stayed gone (+0.007 local vs +0.000 OpenSearch over the dense baseline), so it
+is a property of a corpus full of look-alikes. The local tokenizer has since been fixed. Paired
+local-vs-OpenSearch tables in [`evaluation/results/`](evaluation/results/README.md).
 
-**Multi-turn** — follow-up questions with pronouns ("what about its training cost?") used to
-retrieve against the raw text and miss. A fast-model condense-question step now rewrites them
-into standalone questions before the cache and retrieval — generation never sees the history, so
-the cite-or-refuse contract stays single-turn. Measured on 18 hand-written follow-ups:
-recall@5 0.778 raw → 1.000 condensed (hand-written oracle 1.000), ~0.85s p50 added
-per turn that carries chat history. Three-condition table in
-[`evaluation/results/`](evaluation/results/README.md).
+**Multi-turn.** Follow-up questions with pronouns ("what about its training cost?") used to
+retrieve against the raw text and miss. A fast-model condense-question step now rewrites them into
+standalone questions before the cache and retrieval; generation never sees the history, so the
+cite-or-refuse contract stays single-turn. On 18 hand-written follow-ups: recall@5 0.778 raw →
+1.000 condensed (hand-written oracle 1.000), ~0.85s p50 added per turn that carries chat history.
+Three-condition table in [`evaluation/results/`](evaluation/results/README.md).
 
-End-to-end (RAGAS, grounded vs basic; graph expansion on, the default then), the grounded prompt **refuses 5/5 unanswerable
-questions** at both corpus sizes, yet RAGAS faithfulness/relevancy score any refusal as zero,
-right or wrong. At 6 papers those five explain about a quarter of grounded's lower faithfulness
-(0.534 vs 0.878); most of the rest sits on 15 of 43 answerable questions with the same zero/zero
-pattern (the harness does not save answers, so these were not read one by one). Refusals and answers need separate scores;
-per-type tables, with an older reading of this gap, are on the [results page](evaluation/results/README.md).
+**RAGAS (June-July 2026, superseded by the answer contract).** The earlier end-to-end runs scored
+the strict prompt below a basic prompt on faithfulness (0.534 vs 0.878). RAGAS scores every
+refusal as zero, right or wrong; the 5 correct refusals explain about a quarter of that gap, and
+most of the rest sits on 15 answerable questions with the same zero/zero refusal pattern (that
+harness did not save answers), which the answer contract above traced to the strict refusal rule
+and, in part, to choosing passages from only 5 candidates. Per-type tables on the [results page](evaluation/results/README.md).
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest -q                                  # 300 tests, all mocked (no services needed)
+pytest -q                                  # 346 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
@@ -270,9 +314,10 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `LLM_MODEL_FAST` | gpt-4o-mini | Cheap model for agent control-plane calls (route / grade / rewrite) |
 | `LLM_FALLBACK_MODEL` | gpt-4o-mini | Same-provider fallback on error/timeout (empty = disabled) |
 | `LLM_TIMEOUT` | 30 | LLM request timeout in seconds |
+| `LLM_TEMPERATURE` | 0 | generation temperature (blank or `default` = provider default) |
 | `EMBEDDING_MODEL` | text-embedding-3-small | Embedding model |
 | `RERANKER_PROVIDER` | cohere | cohere / none |
-| `PROMPT_MODE` | grounded | grounded (cite + refuse) / basic |
+| `PROMPT_MODE` | grounded | grounded (cite; answer in part; refuse when nothing answers) / strict (refuse unless fully answered) / basic |
 | `RETRIEVAL_MODE` | hybrid | hybrid (vector + BM25 RRF) / dense |
 | `QUERY_TRANSFORM` | none | none / multi_query / hyde |
 | `GRAPH_EXTRACTOR` | none | none / llm / nlp (graph expansion is opt-in; it lowered retrieval scores in the eval) |
@@ -283,7 +328,7 @@ All via `.env` (see `.env.example` for the full annotated list).
 | `HISTORY_CONDENSE_ENABLED` | true | rewrite follow-ups into standalone questions using chat history (fast model) |
 | `CHAT_HISTORY_MAX_TURNS` / `CHAT_HISTORY_MAX_TURN_CHARS` | 10 / 2000 | server-side history trimming caps |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 512 / 64 | token-based chunking |
-| `TOP_K` / `RERANK_TOP_K` | 5 / 5 | retrieval depth / final context size |
+| `TOP_K` / `RERANK_TOP_K` | 10 / 5 | candidates before rerank / passages kept for the answer |
 | `API_KEY_HASH` | - | SHA256 of bearer token (empty = open) |
 | `GUARDRAILS_ENABLED` | true | edge guardrails: prompt-injection block + PII redaction + toxicity flag |
 | `MCP_ALLOW_INGEST` | true | expose the ingest (write) tool over the MCP server |
@@ -368,16 +413,18 @@ Deliberate trade-offs in the current implementation:
   into standalone questions by a fast model; facts can only come from retrieved context, so the
   cite-or-refuse contract stays single-turn and auditable. Rewrite-type follow-ups ("explain that
   more simply") condense poorly — a documented trade-off, not a bug.
-- **Cost figures are price-table estimates for the answer call and any follow-up rewrite only**;
-  the cost row in [The problem it targets](#the-problem-it-targets) lists what is left out.
+- **In-app cost figures are price-table estimates for the answer call and any follow-up rewrite
+  only.** The answer-contract eval prices every call (models, reranks, embeddings): \$8.47 per
+  1,000 questions in Standard mode, \$10.77 in Agent mode.
 
 ## What a production rollout would still need
 
 Known gaps, each checked against the code, roughly in the order a pilot would meet them:
 
-- **Evidence on your own documents.** Tag real questions with the file names (without extension) of
-  the documents that answer them and run `python evaluation/run_ablation.py --dataset your_questions.json`;
-  scoring answers and refusals also needs the answers saved, which the harness does not do yet.
+- **Evidence on your own documents.** Write real questions with a reference answer and the file
+  names (without extension) of the documents that answer them, including questions the documents
+  cannot answer, then run `evaluation/run_ablation.py --dataset your_questions.json` and
+  `evaluation/run_contract.py --dataset your_questions.json --no-extra`.
 - **Deletion and versions.** Removing a document only deletes its entry in the document list: its
   passages stay searchable and citable. An edited re-upload is indexed next to the old text, and
   re-ingesting the same URL or path is skipped while its record exists (removing the record first
@@ -391,8 +438,6 @@ Known gaps, each checked against the code, roughly in the order a pilot would me
 - **Untrusted content.** URL ingestion fetches any http(s) address from the server, internal
   addresses included (no SSRF guard), and ingested text reaches the prompt without the injection
   check that questions get.
-- **Repeatable answers.** No temperature is set, so generation samples at the provider's default: a
-  borderline question can be answered on one run and refused on the next.
 - **Monitoring and capacity.** Responses do not flag refusals, retrieval fallbacks (such as unranked
   results when reranking fails) or cache hits (a generation fallback shows only as a different
   `usage.model`); there is no load test, latency or uptime target (SLO) or audit log;

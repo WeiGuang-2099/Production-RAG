@@ -1,0 +1,222 @@
+[
+  {
+    "id": "q049",
+    "question": "What weight initialization scheme did 'Attention Is All You Need' use for the Transformer's parameters?",
+    "ground_truth": "The paper does not state how the Transformer's weights were initialized; it describes only the Adam optimizer settings and that the shared embedding/pre-softmax weight matrix is multiplied by sqrt(d_model) in the embedding layers.",
+    "source_papers": [
+      "attention"
+    ],
+    "type": "unanswerable",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q050",
+    "question": "In 'Attention Is All You Need', how fast does the trained Transformer decode at inference time, in sentences or tokens per second, when translating the WMT 2014 test sets?",
+    "ground_truth": "The paper does not report inference/decoding speed, latency or throughput; it gives only training step times (about 0.4 s per step for base models and 1.0 s for big models on 8 P100 GPUs) and decoding settings such as beam size 4.",
+    "source_papers": [
+      "attention"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q051",
+    "question": "What dropout rate was used for the 4-layer Transformer that 'Attention Is All You Need' trained for English constituency parsing on the WSJ portion of the Penn Treebank?",
+    "ground_truth": "The paper does not report the dropout rate of the constituency-parsing model; it says only that dropout (attention and residual), learning rates and beam size were tuned with a few experiments on the Section 22 development set, and it states only the resulting beam size (21) and alpha (0.3).",
+    "source_papers": [
+      "attention"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q052",
+    "question": "What numeric value of the no-answer threshold tau did BERT use when predicting on SQuAD 2.0?",
+    "ground_truth": "The paper does not give a numeric value for tau; it says only that a non-null answer is predicted when the best span score exceeds s_null + tau, with tau selected on the dev set to maximize F1.",
+    "source_papers": [
+      "bert"
+    ],
+    "type": "unanswerable",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q053",
+    "question": "Which English Wikipedia dump (snapshot date) did BERT use for its pre-training corpus?",
+    "ground_truth": "The BERT paper does not state the date or version of the English Wikipedia dump it used; it gives only the corpus size (2,500M words) and says lists, tables and headers were ignored.",
+    "source_papers": [
+      "bert"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q054",
+    "question": "What value of Adam's epsilon was used to pre-train BERT?",
+    "ground_truth": "The BERT paper does not state the Adam epsilon used in pre-training; it gives only learning rate 1e-4, beta1 = 0.9, beta2 = 0.999, L2 weight decay 0.01, 10,000 warmup steps and linear learning-rate decay.",
+    "source_papers": [
+      "bert"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q055",
+    "question": "What masked-LM accuracy (fraction of masked tokens predicted correctly) did BERT reach at the end of pre-training?",
+    "ground_truth": "The paper does not report masked-LM prediction accuracy; it reports only next-sentence-prediction accuracy (97%-98%) and masked-LM perplexity on held-out training data (Table 6, e.g., 3.99 for L=12/H=768 and 3.23 for L=24/H=1024).",
+    "source_papers": [
+      "bert"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q056",
+    "question": "How many V100 GPUs were used to pre-train GPT-3 175B?",
+    "ground_truth": "The paper does not state how many GPUs were used to train GPT-3 175B; it only says all models were trained on V100 GPUs on part of a high-bandwidth cluster provided by Microsoft.",
+    "source_papers": [
+      "gpt3"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q057",
+    "question": "What dropout rate was used when pre-training GPT-3?",
+    "ground_truth": "The paper does not report any dropout rate for GPT-3; its training details list only the Adam settings, gradient clipping, the learning-rate schedule, the batch-size ramp-up and a weight decay of 0.1.",
+    "source_papers": [
+      "gpt3"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q058",
+    "question": "What sampling temperature was used to generate the GPT-3 news articles that human participants tried to distinguish from human-written articles?",
+    "ground_truth": "The paper does not state the sampling temperature (or top-p) used to generate the news articles in the human detection study; temperature 1 with top-p 0.9 is given only for the bias co-occurrence samples and the poem samples.",
+    "source_papers": [
+      "gpt3"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q059",
+    "question": "What learning rate was used to fine-tune the RAG models?",
+    "ground_truth": "The paper does not report the learning rate (or any learning-rate schedule) used to fine-tune RAG; it only says training uses stochastic gradient descent with Adam.",
+    "source_papers": [
+      "rag"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q060",
+    "question": "How many annotators took part in the human evaluation of RAG's Jeopardy question generations?",
+    "ground_truth": "The paper does not state how many annotators took part (or how many rated each pair); it only reports 452 evaluated pairs and that two poorly performing annotators were removed.",
+    "source_papers": [
+      "rag"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q061",
+    "question": "How many passages did the December 2016 Wikipedia index used in RAG's index hot-swapping experiment contain?",
+    "ground_truth": "The paper does not give the size of the December 2016 (DrQA) index; the 21M-passage figure refers only to the December 2018 index used in the main experiments.",
+    "source_papers": [
+      "rag"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q062",
+    "question": "What per-query retrieval latency does the RAG paper report for its FAISS MIPS search over the Wikipedia index?",
+    "ground_truth": "The paper does not report any retrieval latency or timing figure; it only says FAISS MIPS is 'sufficiently fast on CPU' and gives the index's memory needs (about 100 GB, or 36 GB after compression).",
+    "source_papers": [
+      "rag"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q063",
+    "question": "What standard deviation (sigma) does LoRA use for the random Gaussian initialization of its A matrix?",
+    "ground_truth": "The paper does not state a value for sigma; it only says A gets a random Gaussian initialization (drawn as N(0, sigma^2) in Figure 1) and B is initialized to zero so that delta W = BA is zero at the start of training.",
+    "source_papers": [
+      "lora"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q064",
+    "question": "In the LoRA paper, how many NVIDIA V100 GPUs were used to fine-tune GPT-3 175B with LoRA?",
+    "ground_truth": "The paper does not state how many V100 GPUs (or model-parallel shards) were used for GPT-3 175B; it gives only per-GPU throughput (32.5 tokens/s for full fine-tuning vs 43.1 tokens/s for LoRA per V100) and says LoRA allows training with significantly fewer GPUs.",
+    "source_papers": [
+      "lora"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q065",
+    "question": "What SST-2 accuracy did LoRA achieve when adapting GPT-3 175B?",
+    "ground_truth": "The paper does not report any SST-2 result for GPT-3 175B; its GPT-3 experiments cover only WikiSQL, MultiNLI (matched, plus low-data subsets) and SAMSum, and SST-2 appears only for RoBERTa and DeBERTa in Table 2.",
+    "source_papers": [
+      "lora"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q066",
+    "question": "What value of the LoRA scaling hyperparameter alpha was used in the GPT-3 175B experiments?",
+    "ground_truth": "The paper does not state the alpha used for GPT-3 175B; alpha is listed only for RoBERTa (8 or 16), DeBERTa XXL (8) and GPT-2 (32), the GPT-3 hyperparameter tables (Tables 12 and 17) contain no alpha, and Section 4.1 only says alpha is set to the first r tried and not tuned.",
+    "source_papers": [
+      "lora"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q067",
+    "question": "What hardware was used to run inference for UL2 20B in the chain-of-thought experiments?",
+    "ground_truth": "The paper does not state the hardware used for UL2 20B; Appendix E.2 gives hardware only for LaMDA 137B (TPU v3, 8x8, 64 chips) and PaLM 540B (TPU v4, 4x4x12, 192 chips) and says GPT-3 was queried through the public API.",
+    "source_papers": [
+      "cot"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q068",
+    "question": "How many parameters does the Codex model (code-davinci-002) evaluated in the chain-of-thought paper have?",
+    "ground_truth": "The paper does not state Codex's parameter count; it names the model only as code-davinci-002 in the OpenAI API and leaves its size blank ('Codex -') in the results tables, while it gives sizes for the GPT-3, LaMDA, PaLM and UL2 models.",
+    "source_papers": [
+      "cot"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q069",
+    "question": "According to the paper, what GSM8K solve rate does PaLM 540B reach with self-consistency, i.e. taking the majority answer over many sampled chains of thought?",
+    "ground_truth": "The paper does not report any self-consistency result; it only notes that follow-up work (Wang et al., 2022a) shows chain-of-thought prompting can be improved by majority voting over sampled generations, and all of its own results use greedy decoding (PaLM 540B: 56.9% on GSM8K, 58.6% with an external calculator).",
+    "source_papers": [
+      "cot"
+    ],
+    "type": "unanswerable",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q070",
+    "question": "How many evaluation examples does the StrategyQA set used in the chain-of-thought paper contain?",
+    "ground_truth": "The paper does not state the size of its StrategyQA evaluation set; it gives evaluation-set sizes only for the math benchmarks (Table 12, e.g. GSM8K 1,319) and for SayCan (120 examples).",
+    "source_papers": [
+      "cot"
+    ],
+    "type": "unanswerable",
+    "difficulty": "medium"
+  }
+]
