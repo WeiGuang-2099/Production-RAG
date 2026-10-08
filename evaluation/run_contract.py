@@ -22,6 +22,12 @@ Usage:
 
 Config comes from .env like the app; override per run with env vars, e.g.
     LLM_TEMPERATURE=default python evaluation/run_contract.py --label temperature-default
+
+A failed rerank call does not fail the question: the pipeline logs a warning and answers from
+the unranked passages. Such a run no longer measures the configured pipeline, so the harness
+counts every failed call per answer and, by default, stops starting new questions at the first
+one, skips judging, saves the raw records as <stamp>_contract_<label>_aborted.json and exits 2.
+--allow-rerank-fallback keeps going instead; the report then states how many answers fell back.
 """
 from __future__ import annotations
 
@@ -33,6 +39,7 @@ import math
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -169,17 +176,50 @@ def summarize(records: list[dict]) -> dict:
         "refusal_evidence": dict(evidence),
         "routes": dict(routes),
         "errors": sum(1 for r in records if r.get("error")),
+        "rerank_fallback": rerank_fallback(records),
     }
+
+
+def rerank_fallback(records: list[dict]) -> dict | None:
+    """Failed rerank calls and the answers built from unranked passages because of them.
+
+    None when no record carries the count (reports saved before it existed). Records without it
+    (from such a report merged with a newer one) are counted as not_recorded, never as clean.
+    """
+    counted = [r for r in records if "rerank_failures" in r]
+    if not counted:
+        return None
+    return {
+        "failed_calls": sum(r["rerank_failures"] for r in counted),
+        "answers": sum(1 for r in counted if r["rerank_failures"] > 0),
+        "of": len(counted),
+        "not_recorded": len(records) - len(counted),
+    }
+
+
+def describe_error(exc: BaseException) -> str:
+    """Status code and body first: the Cohere SDK's own str() starts with the response headers."""
+    status, body = getattr(exc, "status_code", None), getattr(exc, "body", None)
+    text = f"status_code: {status}, body: {body}" if status is not None else str(exc)
+    return f"{type(exc).__name__}: {text}"[:500]
 
 
 # ── Cost meter ─────────────────────────────────────────
 
 _meter: contextvars.ContextVar[dict | None] = contextvars.ContextVar("contract_meter", default=None)
 _fallback_meter: dict | None = None  # used when a call runs outside the question's context
+# Set by the first failed rerank call; run_one then skips questions it has not started yet.
+_rerank_failed = threading.Event()
+_unattributed_rerank_failures = 0  # failed calls made outside any question's meter
+_first_rerank_error: str | None = None
 
 
 def _current_meter() -> dict | None:
     return _meter.get() or _fallback_meter
+
+
+def new_meter() -> dict:
+    return {"llm_calls": [], "rerank_searches": 0, "rerank_failures": 0, "embedded_tokens": 0}
 
 
 def install_meter() -> None:
@@ -207,11 +247,27 @@ def install_meter() -> None:
     original_rerank = reranker.RerankerService.rerank
 
     def metered_rerank(self, query, documents, top_k=3):
+        global _unattributed_rerank_failures, _first_rerank_error
         m = _current_meter()
-        if m is not None and self.reranker is not None and get_settings().RERANKER_PROVIDER == "cohere":
-            m["rerank_searches"] += 1
+        cohere = self.reranker is not None and get_settings().RERANKER_PROVIDER == "cohere"
+        if m is not None and cohere:
             m["embedded_tokens"] += count_tokens(query)  # one query embedding per retrieval
-        return original_rerank(self, query, documents, top_k)
+        try:
+            result = original_rerank(self, query, documents, top_k)
+        except Exception as exc:
+            # The pipeline catches this and answers from unranked passages with only a log
+            # warning, so record it here and re-raise to keep that fallback path unchanged.
+            if m is not None:
+                m["rerank_failures"] += 1
+            else:
+                _unattributed_rerank_failures += 1
+            if _first_rerank_error is None:
+                _first_rerank_error = describe_error(exc)
+            _rerank_failed.set()
+            raise
+        if m is not None and cohere:
+            m["rerank_searches"] += 1  # a failed call is not billed
+        return result
 
     reranker.RerankerService.rerank = metered_rerank
 
@@ -242,9 +298,14 @@ def load_items(dataset: str | None, extra: str | None, subset: int | None) -> li
     return items
 
 
-def run_one(item: dict, run: int, mode: str, top_k: int | None) -> dict:
+def run_one(item: dict, run: int, mode: str, top_k: int | None, stop_on_rerank_failure: bool = False) -> dict:
     global _fallback_meter
-    meter = {"llm_calls": [], "rerank_searches": 0, "embedded_tokens": 0}
+    meter = new_meter()
+    if stop_on_rerank_failure and _rerank_failed.is_set():
+        return {"id": item["id"], "type": item["type"], "run": run, "question": item["question"],
+                "answer": "", "exact_refusal": False, "cited": [], "citations_in_range": True,
+                "sources": [], "latency_ms": 0.0, "error": "skipped: a rerank call failed earlier in this run",
+                "rerank_failures": 0, "cost": cost_of(meter)}
     token = _meter.set(meter)
     if mode == "agent":
         _fallback_meter = meter  # agent mode runs one question at a time (see main)
@@ -286,6 +347,7 @@ def run_one(item: dict, run: int, mode: str, top_k: int | None) -> dict:
         if mode == "agent":
             _fallback_meter = None
     record["cost"] = cost_of(meter)
+    record["rerank_failures"] = meter["rerank_failures"]
     return record
 
 
@@ -395,6 +457,12 @@ def _fmt(cell: dict | None, pct: bool = True) -> str:
 def render_markdown(report: dict) -> str:
     s, c, p = report["summary"], report["config"], report["summary"]["pooled"]
     flips = "-" if s["flip_rate"] is None else f"{s['flip_rate'] * 100:.1f}%"
+    fb = s.get("rerank_fallback")
+    fallback = "-" if fb is None else f"{fb['answers']} of {fb['of']}" + (
+        f" ({fb['not_recorded']} more not recorded)" if fb.get("not_recorded") else "")
+    warning = ([f"**Rerank failed for {fb['answers']} of {fb['of']} answers ({fb['failed_calls']} calls). "
+                "Those answers used unranked passages, so this run does not measure the configured "
+                "pipeline.**", ""] if fb and fb["answers"] else [])
     lines = [
         f"# Answer contract: {report['label']}",
         "",
@@ -402,6 +470,7 @@ def render_markdown(report: dict) -> str:
         f"{report['n_items']} questions ({s['per_run'][next(iter(s['per_run']))]['n_unanswerable']} unanswerable)"
         if s["per_run"] else "",
         "",
+        *warning,
         "Config: " + ", ".join(f"{k}={v}" for k, v in c.items()),
         "",
         "Rates are mean over runs (min-max in parentheses).",
@@ -420,6 +489,7 @@ def render_markdown(report: dict) -> str:
         f"| answered/refused flips across runs | {flips} |",
         f"| latency p50 / p95 (ms) | {_fmt(p.get('latency_p50_ms'), False)} / {_fmt(p.get('latency_p95_ms'), False)} |",
         f"| cost per 1,000 questions (USD) | {_fmt(p.get('cost_per_1k_questions_usd'), False)} |",
+        f"| answers from unranked passages (rerank failed) | {fallback} |",
         "",
         "Answerable questions by type (pooled over runs):",
         "",
@@ -436,6 +506,31 @@ def render_markdown(report: dict) -> str:
     if s["errors"]:
         lines += ["", f"Errors: {s['errors']}"]
     return "\n".join(lines) + "\n"
+
+
+def save_aborted(args: argparse.Namespace, now: datetime, config: dict, item_list: list[dict],
+                 records: list[dict], failed_calls: int, stopped_in_run: int) -> int:
+    """Keep the raw records of a run stopped by a failed rerank call (nothing is judged); exit 2."""
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    skipped = sum(1 for r in records if (r.get("error") or "").startswith("skipped:"))
+    report = {"label": args.label, "timestamp_utc": now.isoformat(timespec="seconds"),
+              "timestamp_compact": stamp, "config": config, "n_items": len(item_list), "items": item_list,
+              "summary": None,
+              "aborted": {"reason": "rerank failed", "failed_calls": failed_calls,
+                          "first_error": _first_rerank_error, "stopped_in_run": stopped_in_run,
+                          "runs_not_started": args.runs - stopped_in_run,
+                          "skipped_in_stopped_run": skipped},
+              "records": records}
+    out = Path(args.output_dir) / f"{stamp}_contract_{args.label}_aborted.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
+    print(f"ABORTED in run {stopped_in_run}/{args.runs}: {failed_calls} rerank call(s) failed, so answers "
+          "fell back to unranked passages.\n"
+          f"  first error: {_first_rerank_error}\n"
+          f"  raw records (not judged): {out}\n"
+          "  Fix the reranker and rerun, or pass --allow-rerank-fallback to measure the fallback on purpose.",
+          file=sys.stderr, flush=True)
+    return 2
 
 
 def save(report: dict, out_dir: Path) -> Path:
@@ -467,10 +562,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--merge", nargs="+", default=None,
                    help="Combine judged reports of the same config (e.g. base set + extra items) into one")
     p.add_argument("--output-dir", default=str(HERE / "results"))
+    p.add_argument("--allow-rerank-fallback", action="store_true",
+                   help="Keep running when a rerank call fails (default: stop, save raw records, exit 2)")
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
+    global _unattributed_rerank_failures, _first_rerank_error
     args = parse_args(argv)
     now = datetime.now(timezone.utc)
     if args.merge:
@@ -500,13 +598,27 @@ def main(argv: list[str] | None = None) -> int:
         item_list = load_items(args.dataset, None if args.no_extra else args.extra, args.subset)
         items = {it["id"]: it for it in item_list}
         install_meter()
+        _rerank_failed.clear()
+        _unattributed_rerank_failures, _first_rerank_error = 0, None
+        stop = not args.allow_rerank_fallback
         workers = 1 if args.mode == "agent" else max(1, args.workers)
         records = []
+        last_run = 0
         for run in range(1, args.runs + 1):
+            last_run = run
             print(f"run {run}/{args.runs}: {len(item_list)} questions ({args.mode})", flush=True)
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                records += list(pool.map(lambda it, run=run: run_one(it, run, args.mode, args.top_k), item_list))
+                records += list(pool.map(
+                    lambda it, run=run: run_one(it, run, args.mode, args.top_k, stop), item_list))
+            if stop and _rerank_failed.is_set():
+                break
         config = config_snapshot(args)
+        failed = (rerank_fallback(records) or {}).get("failed_calls", 0) + _unattributed_rerank_failures
+        if stop and failed:
+            return save_aborted(args, now, config, item_list, records, failed, last_run)
+        if _unattributed_rerank_failures:
+            print(f"warning: {_unattributed_rerank_failures} failed rerank call(s) ran outside any question "
+                  "and are not in the per-answer counts", file=sys.stderr, flush=True)
     if not args.no_judge:
         print(f"judging {len(records)} responses", flush=True)
         judge_all(records, items, args.judge_model, workers=8)

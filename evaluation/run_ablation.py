@@ -10,7 +10,7 @@ configurations and reports deterministic, LLM-judge-free retrieval metrics
     baseline    dense           none               none
     +bm25       hybrid          none               none
     +rerank     hybrid          cohere             none
-    +graph      hybrid          cohere             (your .env)
+    +graph      hybrid          cohere             llm (uses the graph built at ingest)
 
 Because it never calls the generation LLM, an ablation over the full 48
 questions costs only embeddings (+ Cohere rerank for the last two stages),
@@ -20,6 +20,12 @@ Usage:
     python evaluation/run_ablation.py                  # all stages, full dataset
     python evaluation/run_ablation.py --subset 10      # quick smoke
     python evaluation/run_ablation.py --k 5            # recall@5 / hit@5
+
+A failed rerank call does not fail the question: the pipeline falls back to the
+unranked candidates with only a log warning, which would quietly turn +rerank
+into +bm25. Each stage therefore counts failed rerank calls (the rerank_failures
+column); any failure makes the script exit 2 after saving, unless
+--allow-rerank-fallback is passed.
 """
 from __future__ import annotations
 
@@ -54,7 +60,7 @@ STAGES: list[tuple[str, dict[str, str]]] = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Retrieval ablation over the eval dataset",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -65,7 +71,28 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--top-k", type=int, default=10, help="Initial retrieval depth before rerank (default 10)")
     p.add_argument("--no-save", action="store_true", help="Skip writing the report")
     p.add_argument("--label", default=None, help="Filename suffix for saved reports (e.g. base6, scale30)")
-    return p.parse_args()
+    p.add_argument("--allow-rerank-fallback", action="store_true",
+                   help="Exit 0 even if rerank calls failed (default: exit 2)")
+    return p.parse_args(argv)
+
+
+_rerank_failures = {"count": 0}
+
+
+def install_rerank_counter() -> None:
+    """Count failed rerank calls; the pipeline swallows them and keeps the unranked order."""
+    import app.reranker.reranker as reranker
+
+    original = reranker.RerankerService.rerank
+
+    def counted(self, query, documents, top_k=3):
+        try:
+            return original(self, query, documents, top_k)
+        except Exception:
+            _rerank_failures["count"] += 1
+            raise  # keep the pipeline's fallback path unchanged
+
+    reranker.RerankerService.rerank = counted
 
 
 def load_dataset(path: str | None, subset: int | None) -> list[dict]:
@@ -85,14 +112,15 @@ def run_stage(label: str, overrides: dict, dataset: list[dict], k: int, top_k: i
     for key, val in overrides.items():
         os.environ[key] = val
     # Measure recall@k over the full retrieval depth: keep all top_k candidates
-    # through rerank so the reranker can reorder but not truncate below k (the
-    # app default RERANK_TOP_K=3 would silently cap recall@5 at recall@3).
+    # through rerank so the reranker reorders them without truncating below k
+    # (the app keeps RERANK_TOP_K=5 passages, which would cap recall@k for k > 5).
     os.environ["RERANK_TOP_K"] = str(top_k)
     get_settings.cache_clear()
     clear_caches()
 
     items: list[dict] = []
     latencies: list[float] = []
+    _rerank_failures["count"] = 0
     print(f"\n=== stage: {label} ({overrides}) ===")
     for i, item in enumerate(dataset, 1):
         t0 = time.time()
@@ -107,6 +135,7 @@ def run_stage(label: str, overrides: dict, dataset: list[dict], k: int, top_k: i
         )
     agg = aggregate_retrieval_metrics(items, k)
     agg["stage"] = label
+    agg["rerank_failures"] = _rerank_failures["count"]
     if latencies:
         agg["p50_ms"] = round(median(latencies), 1)
         agg["p95_ms"] = round(sorted(latencies)[min(len(latencies) - 1, int(len(latencies) * 0.95))], 1)
@@ -114,27 +143,36 @@ def run_stage(label: str, overrides: dict, dataset: list[dict], k: int, top_k: i
     return agg
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     dataset = load_dataset(args.dataset, args.subset)
     print(f"Ablation over {len(dataset)} questions (k={args.k}, top_k={args.top_k})")
 
+    install_rerank_counter()
     results = [run_stage(label, ov, dataset, args.k, args.top_k) for label, ov in STAGES]
 
-    columns = ["stage", f"recall@{args.k}", "mrr", f"hit@{args.k}", "p50_ms", "p95_ms", "count"]
+    columns = ["stage", f"recall@{args.k}", "mrr", f"hit@{args.k}", "p50_ms", "p95_ms", "count",
+               "rerank_failures"]
     table = render_markdown_table(results, columns)
+    failed = {r["stage"]: r["rerank_failures"] for r in results if r["rerank_failures"]}
+    warning = ("**Rerank failed in " + ", ".join(f"{s} ({n} of {len(dataset)} questions)" for s, n in failed.items())
+               + "; those questions kept the unranked order.**\n\n") if failed else ""
     print("\nRetrieval ablation (higher is better; latency is retrieval-only):\n")
-    print(table)
+    print(warning + table)
 
     if not args.no_save:
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         suffix = f"_{args.label}" if args.label else ""
         out_dir = Path(__file__).resolve().parent / "results"
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{ts}_ablation{suffix}.md").write_text(table + "\n", encoding="utf-8")
+        (out_dir / f"{ts}_ablation{suffix}.md").write_text(warning + table + "\n", encoding="utf-8")
         (out_dir / f"{ts}_ablation{suffix}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
         print(f"\nSaved: evaluation/results/{ts}_ablation{suffix}.md")
 
+    if failed and not args.allow_rerank_fallback:
+        print("Rerank calls failed, so the rerank stages did not measure the reranker. Fix it and rerun, "
+              "or pass --allow-rerank-fallback.", file=sys.stderr)
+        return 2
     return 0
 
 
