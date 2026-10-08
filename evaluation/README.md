@@ -1,7 +1,8 @@
 # Evaluation
 
 End-to-end quality evaluation of the RAG pipeline using a fixed corpus of
-classic ML/AI papers and 48 hand-crafted questions across 6 question types.
+classic ML/AI papers, 48 hand-crafted questions across 6 question types, and
+22 near-miss unanswerable questions used by the answer-contract eval.
 
 ## Corpus
 
@@ -66,10 +67,20 @@ Breakdown:
 | long_tail | 5 | obscure details; tests retrieval recall on rare facts |
 
 The `unanswerable` bucket is important: a good RAG system should say "the
-paper does not state X" rather than hallucinate. Most public RAG benchmarks
-under-test this, and it is what differentiates a production-ready system.
+paper does not state X" rather than hallucinate. Five items are too few to
+measure that, so `unanswerable_extra.json` adds 22 near-miss questions (`q049`
+... `q070`, same fields): topics the papers cover, facts they never state, such
+as how many V100 GPUs trained GPT-3 or which Adam epsilon pre-trained BERT. Each
+was drafted with model help and kept only after two independent checks of the
+479 chunks found no answer (2 of 24 candidates were dropped as ambiguous). The
+answer-contract eval below uses them; the retrieval ablation and RAGAS runs use
+the original 48.
 
 ## Running the evaluation
+
+Steps 3-4 below run the RAGAS eval, kept for history: it scores every refusal
+as zero, so the answer contract (below) superseded it for current numbers. For
+those, run `run_contract.py` and `run_ablation.py` after step 2.
 
 ```bash
 # 1. Download the corpus (writes PDFs to <DATA_DIR>/papers/)
@@ -115,8 +126,7 @@ Each run prints:
 - per-bucket question count `n`
 
 And saves a structured JSON report under `evaluation/results/` containing
-the per-item scores, latency, and any failures. This is what you commit /
-share to demonstrate measurable RAG quality.
+the per-item scores, latency, and any failures.
 
 ## Metrics
 
@@ -149,7 +159,7 @@ It sweeps four cumulative configurations and prints a comparison table:
 | baseline | dense | none | none |
 | +bm25 | hybrid | none | none |
 | +rerank | hybrid | cohere | none |
-| +graph | hybrid | cohere | (your `.env`) |
+| +graph | hybrid | cohere | llm (needs the graph built at ingest) |
 
 Metrics:
 
@@ -161,3 +171,64 @@ The 5 `unanswerable` questions each list the paper they ask about in
 `source_papers`, so retrieval is scored on all 48 (the reports show `count` 48).
 Reports are written to `results/`; see [`results/README.md`](results/README.md)
 for the published tables.
+
+A failed rerank call does not fail the question: the pipeline logs a warning
+and keeps the unranked hybrid order, which quietly turns `+rerank` into
+`+bm25`. Each stage counts failed calls in a `rerank_failures` column, a
+warning above the table names the stages that had any, and the script exits 2
+after writing the report unless `--allow-rerank-fallback` is passed.
+
+## Answer contract: answer what it can, refuse what it cannot
+
+RAGAS scores any refusal as zero, right or wrong, so it cannot separate a
+correct "not in the documents" from a missed answer. `run_contract.py` measures
+that contract directly:
+
+```bash
+python evaluation/run_contract.py --label final                 # 70 questions x 3 passes, Standard mode
+python evaluation/run_contract.py --mode agent --label agent    # the same questions through the agent
+python evaluation/run_contract.py --subset 5 --runs 1 --label smoke
+# the shipped setup before the fix (run A), except that BM25 now uses the fixed tokenizer
+PROMPT_MODE=strict LLM_TEMPERATURE=default python evaluation/run_contract.py --top-k 5 --label before
+```
+
+It runs the 48 questions plus the 22 near-miss unanswerable items in several
+passes (`--runs`, default 3; the reports call each pass a run), and saves
+every answer with its `[n]` citations, the retrieved passages, latency and the
+cost of every model and rerank call. A judge model (default `LLM_MODEL`)
+labels each response:
+
+- **stance**: refusal, partial (answers part and says what is missing) or answer;
+- **verdict** on answerable items: correct, partially correct or incorrect against the reference;
+- **fabricated** on unanswerable items: did it assert an answer the documents do not support;
+- **evidence** on answerable items it refused or answered only in part: did the retrieved passages hold the answer (the report counts this for the refused ones).
+
+The report gives each rate per pass and pooled. Rates: unanswerable declined,
+answerable refused, correct / partially correct / incorrect, citation validity,
+and answered-vs-refused flips across passes. It also gives p50/p95 latency
+(4 questions in flight by default, `--workers`; Agent mode runs one at a time)
+and cost per 1,000 questions over all calls (Cohere rerank priced at $2 per
+1,000 searches; a failed rerank call is not priced).
+`--rejudge <report.json> --judge-model <model>` re-labels saved answers with
+another judge, and `--merge` combines reports from separate invocations.
+
+A failed rerank call does not fail the question here either: the pipeline
+answers from the first `RERANK_TOP_K` candidates in unranked hybrid order, so
+the run no longer measures the configured pipeline. `run_contract.py` counts
+failed calls per answer, and by default the first one stops the run:
+
+- questions not yet started are skipped (those in flight finish) and later
+  passes do not start;
+- nothing is judged; the raw records are saved as
+  `results/<stamp>_contract_<label>_aborted.json` with the first error's status
+  code and body;
+- the script exits 2.
+
+Rate-limit errors (429) are retried with backoff before they count; any other
+error, such as a 402 billing cap or a 401 bad key, counts at once.
+`--allow-rerank-fallback` keeps going instead. Every report has the row
+"answers from unranked passages (rerank failed)", which shows how many answers
+used unranked passages; when any did, a warning heads the report.
+
+Published runs:
+[`results/README.md`](results/README.md#answer-contract-measured-and-fixed).

@@ -1,195 +1,215 @@
-# Case study: measuring and hardening a production RAG system
+# Case study: measuring and fixing a cite-or-refuse RAG system
 
-This is the short version of what the project is actually about: not "I wired up
-RAG," but "I measured it against real keys, found where it breaks, and fixed
-that." The numbers below are real runs (2026-06-22), not illustrations.
+What this project is about: not wiring up RAG, but running it against live APIs, finding where it
+breaks, and fixing that, with the numbers to show it. There were three rounds: the first eval
+(June 2026); scale, latency and multi-turn studies (July); and an answer-contract eval with fixes
+(October). Every eval number below comes from a report in
+[`evaluation/results/`](../evaluation/results/README.md), except two that were measured live but not
+saved as reports: the Quick start refusals in Finding 3 and the ingest time under Cost and latency.
 
 ## The system under test
 
-Hybrid retrieval (dense vectors + BM25 with RRF fusion + a lightweight knowledge
-graph) -> Cohere rerank -> grounded, cited, *cite-or-refuse* generation, fronted
-by a corrective-RAG agent (route / retrieve / grade / rewrite) and edge
-guardrails (prompt-injection block, PII redaction, toxicity flag). Provider-
-agnostic factories, per-query token/cost accounting, a semantic cache, Dockerized,
-215 mocked unit tests.
+Hybrid retrieval (Qdrant vectors plus BM25, fused with RRF), Cohere rerank, and generation that
+must cite its passages or refuse. A LangGraph corrective-RAG agent (route, retrieve, grade, rewrite)
+is the opt-in second mode, and edge guardrails screen input and output. It also has provider-agnostic
+factories, per-answer cost estimates, an opt-in semantic cache, an MCP server, a React UI and a
+Docker Compose stack. A lightweight knowledge-graph expansion exists but is off by default
+(Finding 2).
 
 ## How it is measured
 
-- **Corpus:** 6 classic ML papers (Attention, BERT, GPT-3, RAG, LoRA, CoT) — 479
-  chunks. Chosen so multi-hop questions can legitimately span papers.
-- **Dataset:** 48 hand-written questions across 6 types (factual, multi_hop,
-  comparative, numerical, unanswerable, long_tail), each tagged with its
-  ground-truth source paper(s).
-- **Two harnesses:** `run_ablation.py` (deterministic recall@k / MRR / hit@k — no
-  LLM judge, cheap) and `run_eval.py` (RAGAS faithfulness / answer_relevancy /
-  context_recall / context_precision; judge = gpt-4o-mini for cost, answers from
-  gpt-4o).
+- **Corpora:** 6 classic ML papers (Attention, BERT, GPT-3, RAG, LoRA, CoT), 479 chunks. A second
+  corpus adds 24 adversarial look-alike papers (RoBERTa and ALBERT next to BERT, DPR and FiD next to
+  RAG, QLoRA next to LoRA, ...): 2,194 chunks.
+- **Questions:** 48 hand-written questions across 6 types, each tagged with its source paper(s);
+  22 near-miss questions on topics the papers cover but facts they never state, each kept only
+  after two independent checks of the chunk text found no answer; and 18 follow-up questions for
+  multi-turn.
+- **Harnesses:**
+  - `run_ablation.py`: deterministic recall@k / MRR / hit@k per retrieval stage, no judge.
+  - `run_contract.py`: does it answer what the documents support and refuse the rest? It saves
+    every answer, and a gpt-4o judge labels refusals, correctness and fabrication, cross-checked
+    against gpt-4o-mini.
+  - `run_eval.py`: RAGAS, kept for history.
+  - `run_multiturn.py`: raw vs rewritten vs hand-written follow-ups.
 
-## Finding 1 — retrieval: dense is already near-ceiling; BM25 earns its place
+## Finding 1: the refusal problem, and the wrong first explanation
 
-| stage | recall@5 | mrr | hit@5 |
-| --- | --- | --- | --- |
-| baseline (dense)   | 0.934 | 0.979 | 1.000 |
-| +bm25 (hybrid RRF) | **0.972** | 0.958 | 1.000 |
-| +rerank (Cohere)   | 0.962 | **0.979** | 1.000 |
-| +graph             | 0.903 | 0.927 | 0.958 |
+The June RAGAS run scored the cite-or-refuse prompt far below a basic prompt (faithfulness 0.534 vs
+0.878). RAGAS scores every refusal as zero, right or wrong, so the first reading was that the metric
+penalized correct refusals. That explains only about a quarter of the gap: the 5 correct refusals.
+Most of the rest came from 15 answerable questions that scored zero on both faithfulness and answer
+relevancy, the score a refusal gets; the harness did not save answers, so that could not be checked.
 
-Six topically distinct papers separate cleanly in embedding space, so dense
-retrieval already lands a correct paper in the top-5 every time (hit@5 = 1.000).
-With almost no recall headroom, the ablation measures *which knob moves what*:
-**+BM25 maximizes recall@5** (0.934 -> 0.972, no latency cost); **+rerank
-maximizes MRR** (0.958 -> 0.979 — it puts the single best chunk first, ~0.7s added
-p95), which is what actually matters feeding a top-3 context window; and **+graph
-hurts here** (recall 0.903), because cross-paper expansion adds noise on a corpus
-this small.
+The answer-contract harness (October) saves every answer and has a judge label it. On 70 questions
+(43 answerable, 27 unanswerable; three passes per run), the shipped configuration refused 31.8% of
+answerable questions. Because no temperature was set, 15.7% of questions flipped between an answer
+and a refusal across passes.
 
-I would rather report "graph doesn't pay off at this scale" than manufacture a
-monotonic "every component helps" table. (These rerank/graph numbers are from a
-production Cohere key — an earlier run was silently degraded by a *trial* key's
-rate limit, which is itself Finding 3.)
+What fixed it, one change at a time. Each configuration below is one run of three passes, except
+the default, which ran twice (step 4). Every run declined all 27 unanswerable questions in every
+pass, and every rate is the mean of its three passes.
 
-## Finding 2 — generation: the eval inverted "grounded is more faithful," and the inversion is the lesson
+1. **Temperature 0 removed the provider-default randomness, not the refusals:** in the shipped
+   setup, flips fell from 15.7% to 0%, and refusals went from 31.8% to 32.6%.
+2. **Under the strict prompt, 10 candidates instead of 5 cut refusals to 20.9%** (from 31.0-32.6%).
+   Why is not settled: the judge found the evidence already in the kept passages for most strict
+   refusals at either depth (29 of 42 at 5 candidates, 16 of 27 at 10, old tokenizer). The BM25
+   tokenizer fix did not help: in a 2x2 of depth and tokenizer (one run per cell) it moved refusals
+   by 0-1.6 points.
+3. **The partial-answer prompt took refusals to 4.7%.** On identical retrieval (10 candidates,
+   fixed tokenizer) it cut refusals from 20.9% to 4.7% (9 to 2 of 43 per pass) and raised correct
+   answers from 62.0% to 69.8%, with no wrong answers in either run. It is insensitive to depth and
+   tokenizer: 2.3-4.7% refused in all four runs.
+4. **It replicated the next day with identical passages:** the same 5 passages in the same order
+   for all 210 answers, the same two refusals in every pass, 4.7% refused, 71.3% correct and one
+   wrong answer in one pass.
 
-RAGAS, both prompts, full 48 questions (`RERANK_TOP_K=5`; gpt-4o answers,
-gpt-4o-mini judge):
-
-| prompt | faithfulness | answer_relevancy | context_recall | context_precision |
+| answerable refused, temperature 0 | 5 candidates, old tokenizer | 5, fixed | 10, old | 10, fixed (default) |
 | --- | --- | --- | --- | --- |
-| basic | 0.878 | 0.838 | 0.896 | 0.794 |
-| grounded | 0.534 | 0.521 | 0.844 | 0.790 |
+| strict: refuse unless the context holds "enough information" | 32.6% | 31.0% | 20.9% | 20.9% |
+| partial-answer: answer what is stated, name what is missing, refuse only when nothing answers | not run | 3.9% | 2.3% | 4.7% (4.7% next day) |
 
-I expected the grounded (cite-or-refuse) prompt to *win* on faithfulness; it scored
-markedly lower. Why is the whole point — and reading the actual answers split it
-into a metric artifact and a real bug I then fixed:
+At temperature 0, wrong answers stayed low: 0-1.6% under the strict prompt, 0-3.1% under the
+partial-answer one (0% and 0.8% in the two default runs). The strict prompt still flipped on 0-8.6%
+of questions; the partial-answer prompt flipped once, on one question in the 5-candidate run.
 
-1. **RAGAS punishes correct refusals (artifact).** On the 5 `unanswerable`
-   questions the grounded prompt correctly replies "I cannot answer this from the
-   provided documents," which RAGAS scores `answer_relevancy = 0.000`. The metric
-   that actually matters — does it refuse when it should? — says the opposite:
+The October numbers had a wrong first explanation too, and how it was caught is the lesson. One
+run, launched as
+"strict prompt, 10 candidates", refused only 2.3%, which read as "the shipped retrieval depth was
+the cause". But the prompt file had been edited while that run was queued. The prompt hash recorded
+in its report showed it had run the new prompt, and control runs with the strict prompt and 10
+candidates (old and fixed tokenizer) both refused 20.9%. Depth mattered only under the strict
+prompt (32.6% to 20.9%); the partial-answer prompt refused 3.9% at 5 candidates and 4.7% at 10, so
+at the default the prompt does the work. Two habits came out of it:
 
-   | refusal rate on the 5 unanswerable | basic | grounded |
-   | --- | --- | --- |
-   | refuses (correct) | 0/5 | **5/5** |
+- check the prompt hash and config recorded in each report against the run's label before
+  reading its numbers;
+- before acting on a surprising number, run a control of the configuration it claims to be.
 
-   Basic answers all five questions that have no answer in the corpus; grounded
-   refuses all five. Standard faithfulness/answer_relevancy penalize that because
-   they reward confident answering.
+The second lesson came the same day. Repeats of two configurations, run under an hour after the
+originals, refused more (strict 29.5% vs 20.9%, partial-answer 9.3% vs 4.7%), which read as
+run-to-run noise. It was the reranker: the Cohere key had hit its billing cap in between, and the
+pipeline answered from unranked passages while the reports looked valid (Finding 3). Rerun the next
+day with the reranker working, the partial-answer repeat retrieved the same passages in the same
+order as the original for all 210 answers and refused the same two questions (4.7% both times). A
+run whose dependency fell back is not the configuration it claims, which is why the harness now
+stops on a failed rerank call.
 
-2. **Grounded over-refused answerable multi-hop (real bug, now fixed).** At the
-   first run's `RERANK_TOP_K=3`, grounded refused 6/10 answerable multi-hop
-   questions — the top-3 context didn't co-locate the cross-paper evidence.
-   Measuring refusal rate against the final context size made the fix obvious:
+Still unsolved under the new default:
 
-   | RERANK_TOP_K | 3 | 5 | 8 |
-   | --- | --- | --- | --- |
-   | multi_hop refused | 6/10 | 4/10 | 3/10 |
+- **Still refused, in every pass of Standard and Agent mode:** a cross-paper comparison
+  (Transformer vs BERT positional encoding, q024), and a question whose answer the paper gives as
+  two tried values ("k ∈ {5, 10}", set on dev data) rather than one (q047).
+- **No recurring wrong answer at the default.** Two recurred elsewhere. q020 names DeBERTa XXL as
+  the largest model LoRA was evaluated on; the answer is GPT-3 175B. It appeared with the old
+  tokenizer, with 5 candidates and with the reranker off, never in the three default runs. q028
+  (LoRA vs full fine-tuning) was judged wrong in 12 passes across 8 runs, once at the default (E2),
+  each time because the answer gave figures the reference does not contain; similar answers were
+  judged partially correct in other passes.
+- **Judge reliability:** two judges (gpt-4o and gpt-4o-mini) agree on every refusal and fabrication
+  label, but on only 81% of "correct" vs "partially correct" calls.
 
-   Raising the context 3 → 5 chunks (now the default) lifted grounded multi-hop
-   faithfulness **0.150 → 0.500**, with correct cited answers (q017 "BERT
-   bidirectional vs GPT left-only [2]"; q019 "BART [3]"). Honest limit: true
-   *synthesis* questions (q016) still refuse even at k=8 — strict grounding won't
-   assert a fact no single chunk states.
+## Finding 2: look-alike documents hurt ranking, not recall
 
-`context_recall` / `context_precision` are nearly identical across prompts, which
-confirms retrieval was the same and the gap is generation behavior.
+Growing the corpus 4.6x with look-alike papers left dense recall@5 unchanged (0.934, and a relevant
+paper always in the top 5) while MRR fell from 0.979 to 0.844: the look-alikes crowd the top of the
+window rather than pushing the right paper out of it. Reranking is the only stage that beats dense
+retrieval on MRR at both sizes (0.990 and 0.862, current code).
 
-The takeaway is something you only learn by running the eval and reading the
-outputs: **standard RAGAS faithfulness/answer_relevancy are the wrong yardstick for
-a refusal-capable RAG system.** Taken naively they say "turn off grounding" — the
-exact opposite of what a system that must not hallucinate should do. The right
-measure is refusal-segmented: refusal accuracy on unanswerable, answer accuracy on
-answerable.
+Component value depends on the corpus. BM25 lifts recall@5 at 6 papers (0.934 to 0.972) but slightly lowers it
+at 30 (0.924 vs 0.934 dense; one question of 48 loses its paper from the top 5), likely because a
+question naming "BERT" also matches the look-alike papers that mention BERT (not checked question by
+question). Graph expansion
+lowers every metric at both sizes: its hits are extracted triples that cite no document, so each
+one in the top 5 pushes out a citable passage. It is off by default; the evidence changed the
+default.
 
-## Finding 3 — three production bugs you only find by actually running it
+The reranker-off runs from October (Finding 1) also form an unplanned answer-level ablation of the
+reranker. It is one run per configuration, three passes each, not a planned experiment. With 10
+candidates, answering from the unranked hybrid top 5 raised refusals in all four pairs (strict
+prompt 20.9% to 36.4% with the old tokenizer and to 29.5% with the fixed one, partial-answer 4.7%
+to 9.3%, Agent mode 4.7% to 7.0%), lowered correct answers in all four and raised wrong answers to
+2.3-3.9%. With 5 candidates the reranker can only reorder the same 5 passages, and order alone made
+no measurable difference (3.9% refused with it, 4.7% without). That supports the default of
+retrieving 10 candidates and keeping 5, which was set to match the retrieval ablation.
 
-The eval did more than produce numbers; running it end-to-end against real APIs
-surfaced three bugs that 215 *mocked* unit tests never could:
+## Finding 3: bugs that only live runs found
 
-1. **Graph extraction crashed on null triples.** The LLM occasionally returns
-   `{"head": null, ...}`; the parser only checked that keys existed, so
-   `networkx.add_edge(None, ...)` raised "None cannot be a node" and dropped the
-   entire paper's graph. Fixed test-first (reject empty head/relation/tail, plus
-   a defensive guard in the store).
-2. **RAGAS would not import.** The environment had drifted to the langchain v1
-   line (langchain 1.3.x / community 0.4.x), and ragas 0.4.3 hard-imports a
-   VertexAI wrapper that v1 removed. Rather than downgrade the whole stack (which
-   the app no longer targets), I added a tiny, documented compatibility shim that
-   stubs the two unused symbols.
-3. **The reranker failed silently under rate limits.** A Cohere `429` raised
-   straight through and the pipeline quietly fell back to *unranked* results — and
-   this silently contaminated my first ablation run (most rerank calls were
-   429ing). The fix: retry with bounded backoff on rate-limit errors, then degrade
-   gracefully. The lesson is the real deliverable here — *measure, and trust no
-   result until you have checked its failure path.*
+Mocked unit tests (346 now) never touch a real API or a real container. Running the system for real
+found:
 
-## Finding 4 — at 5x adversarial scale, ranking degrades, recall does not — and the reranker becomes the component that earns its keep
+- **June:**
+  - The graph extractor crashed on null triples, dropping a paper's whole graph.
+  - RAGAS stopped importing after a LangChain major-version drift (fixed with a small
+    compatibility shim).
+  - Cohere 429s on a trial key made the reranker fall back silently to unranked results, which
+    quietly contaminated the first ablation. Rate-limit errors now retry with backoff.
+- **October:**
+  - The reranker fell back silently again. The Cohere key hit its billing cap (HTTP 402), which,
+    unlike a 429, is not retried, and five answer-contract runs went on with the reranker off.
+    Their reports looked valid; grepping the run logs for `rerank_failed` caught it. Since 230d254
+    the answer-contract harness stops at the first failed rerank call and the ablation exits 2 on
+    any, unless `--allow-rerank-fallback` is passed, and every report counts the answers that came
+    from unranked passages. The affected configurations (strict and partial-answer at 10
+    candidates, partial-answer at 5, Agent mode) were rerun with the reranker working; the strict
+    repeat's configuration already had a valid run from before the cap.
+  - The Docker Compose stack never started: Qdrant's health check called `curl`, which the image
+    does not ship.
+  - The app's logs were never emitted: modules logged through stdlib loggers, but only structlog
+    was configured.
+  - The BM25 tokenizer kept punctuation glued to words, so every question's last word ("bert?")
+    never matched. Fixing it improved MRR at 6 papers and hurt at 30, because correct keyword
+    matching surfaces look-alikes.
+  - The Quick start's example question ("What does the Transformer eliminate?", with only that
+    paper ingested) was refused in 8 of 11 live tries: the passage stating the answer missed the
+    top 5. The Quick start now asks the fuller question from the chat screenshot, which answered 5
+    of 5 with a citation (a hand check noted in commit eea7ec3, not a saved report).
+  - The price table billed a dated gpt-4o-mini id at gpt-4o rates.
+  - The shipped retrieval depth differed from the one every retrieval eval measured.
 
-Finding 1's caveat was that six well-separated papers leave dense retrieval
-near the ceiling. So I grew the corpus 4.6x (479 -> 2,194 chunks) with 24
-*adversarial* distractors — papers a retriever plausibly confuses with the
-ground truth (RoBERTa/ALBERT vs BERT, DPR/FiD/REALM vs RAG, adapters/QLoRA vs
-LoRA, self-consistency/ReAct vs CoT) — and reran the identical 48 questions.
-Same-day paired runs, same machine and keys (2026-07-08 UTC):
+## Finding 4: Agent mode does not pay for itself on this question set
 
-| stage | recall@5 (6p) | recall@5 (30p) | mrr (6p) | mrr (30p) |
-| --- | --- | --- | --- | --- |
-| baseline (dense)   | 0.934 | 0.934 | 0.979 | 0.844 |
-| +bm25 (hybrid RRF) | 0.972 | 0.941 | 0.958 | 0.839 |
-| +rerank (Cohere)   | 0.962 | 0.934 | 0.979 | 0.877 |
-| +graph             | 0.903 | 0.872 | 0.927 | 0.815 |
+Run at the default in the same session as Standard mode, both with the reranker working, Agent mode
+matched it on quality. Both refused 4.7% of answerable questions (the same two, in every pass) and
+answered 71.3% correctly; Agent mode gave no wrong answer, Standard mode one in one pass. Both
+declined all 27 unanswerable questions, though on one Agent mode explained the gap instead of using
+the exact refusal sentence. By question type the two are equal or close: multi-hop 66.7% correct
+in both, comparative 45.8% vs 37.5%, factual 75.6% vs 80.0%. Agent mode took 2.6x the latency (p50
+3.39s vs 1.31s, p95 7.58s vs 3.58s; Agent mode runs one question at a time, Standard mode had 4 in
+flight) at 1.27x the cost (\$10.77 vs \$8.47 per 1,000 questions).
 
-Three things the paired table says that neither corpus says alone:
+Where the extra cost goes: it routed all 210 answers (70 questions, three passes) to retrieval.
+All 81 unanswerable passes used both query rewrites (7 model calls and 3 reranks each; \$13.33 per
+1,000 unanswerable questions vs \$9.16 per 1,000 answerable) to reach the refusal Standard mode
+gives after one retrieval. Of 129 answerable passes, 126 needed no rewrite, and the other 3 were the
+cross-paper comparison, still refused. The rewrites restate the question as keywords ("How much
+did it cost in USD to train GPT-3?" became "Cost of training GPT-3 in USD") because the rewriter
+sees only the question, not why the grader rejected the passages. Agent mode stays opt-in. The next
+fix would pass the grader's reason to the rewriter.
 
-1. **Adversarial density attacks ranking, not recall.** Dense recall@5 is
-   unchanged and hit@5 stays 1.000 — the right paper still makes the top-5 —
-   but MRR collapses 0.979 -> 0.844 because confusable neighbors crowd the
-   top ranks. For a system feeding a tight context window, MRR is the metric
-   that predicts answer quality, and it is the one that broke.
-2. **Component value is corpus-dependent.** BM25, the recall hero at 6 papers
-   (+0.038), is nearly worthless at 30 (+0.007) and now costs a hit@5 —
-   keyword overlap is exactly what BERT-variants share with BERT. The
-   reranker moves the other way: its MRR contribution roughly doubles
-   (+0.021 -> +0.038) and it repairs the hit BM25 lost. Tuning the stack on
-   the small corpus alone would have overvalued BM25 and undervalued the
-   reranker.
-3. **Graph keeps not paying off, more so** (recall 0.872, MRR 0.815, hit@5
-   0.938) — lexical entity expansion is the wrong tool when the corpus is
-   full of near-topic neighbors by design.
+## Cost and latency
 
-The scale run also killed a latency hypothesis: p50 stayed ~1.0s (dense) /
-~1.4s (reranked) at 4.6x the chunks, so retrieval latency is still dominated
-by the embedding API round-trip, not local index work — which reprioritizes
-the optimization backlog toward parallelizing the retrieval legs over caching
-the local indexes.
+- **Per question, every call priced** (models, Cohere reranks, query embeddings): \$8.47 per
+  1,000 questions in Standard mode and \$10.77 in Agent mode. The in-app per-answer figure covers
+  only the answer call and any follow-up rewrite.
+- **Full answers:** Standard mode p50 1.3s, p95 2.7-3.6s across two sessions, measured with 4
+  questions in flight. Agent mode, one question at a time: p50 3.4s.
+- **Retrieval:** the July change that cached stores and parallelized the retrieval legs halved
+  retrieval latency (p50 ~1.4s to ~0.64s) with bit-identical retrieval scores.
+- **Ingest:** graph extraction is one gpt-4o call per chunk; 479 chunks took ~32 minutes and were
+  the dominant spend in June. It is off by default now.
 
-## Cost and latency reality
+## What is still open
 
-- **Retrieval latency** (includes the per-query embedding call): p50 ~1.0s, p95
-  ~1.7s for dense/hybrid; reranking adds ~0.7s (p50 1.7s, p95 2.1s).
-- **End-to-end answer latency** (gpt-4o, basic prompt): mean 3.3s, p50 2.9s, p95
-  5.6s.
-- **Ingestion cost lesson:** graph extraction fires *one gpt-4o call per chunk* —
-  479 sequential calls, ~32 minutes, and it was the dominant spend (enough to
-  exhaust the OpenAI budget mid-eval). The next iteration moves extraction to
-  gpt-4o-mini with bounded concurrency: roughly 15x cheaper and 10x faster, for a
-  graph this lightweight. Knowing exactly where the money went is the point.
+The README's
+[production rollout list](../README.md#what-a-production-rollout-would-still-need) covers the
+product gaps: deletion, access control, SSRF, monitoring and load. On the evaluation side:
 
-## Honest limitations / what is next
-
-- **Already fixed from this eval's findings:** raised `RERANK_TOP_K` 3 → 5 (now the
-  default), which cut grounded's multi-hop over-refusal 6/10 → 4/10 and lifted
-  multi-hop faithfulness 0.150 → 0.500.
-- **Surfaced, still open:** add refusal-segmented eval metrics (refusal accuracy on
-  unanswerable, answer accuracy on answerable), since RAGAS faithfulness/relevancy
-  mislead on a cite-or-refuse system; multi-hop-aware retrieval for the true-
-  synthesis questions that still refuse even at k=8; and move graph extraction to
-  gpt-4o-mini + bounded concurrency (~15x cheaper, ~10x faster).
-- **Known architectural limits, called out not hidden:** GraphRAG is intentionally
-  lightweight (LLM/NER triples + lexical matching) and did not pay off at either
-  corpus scale (6 or 30 papers — Finding 4); the semantic cache is process-local;
-  BM25 rebuilds per ingest.
-- **Still to build:** a live hosted demo, and a load test reporting p95 latency and
-  $/1k queries.
+- the judge has been cross-checked against a second model, not against human labels;
+- 27 unanswerable questions is still a small sample;
+- everything is English ML papers;
+- and nothing yet verifies at runtime that a cited passage supports its sentence.
 
 ## Reproduce
 
@@ -198,9 +218,8 @@ docker-compose up -d qdrant
 python evaluation/corpus/download_papers.py
 GRAPH_EXTRACTOR=llm python evaluation/ingest_corpus.py --force   # graph is opt-in
 python evaluation/run_ablation.py --k 5
-PROMPT_MODE=basic    python evaluation/run_eval.py --label basic
-PROMPT_MODE=grounded python evaluation/run_eval.py --label grounded
+python evaluation/run_contract.py --label final                  # answer vs refuse, 70 x 3
+python evaluation/run_contract.py --mode agent --label agent
+PROMPT_MODE=strict LLM_TEMPERATURE=default python evaluation/run_contract.py --top-k 5 --label before
+# (the last line is the shipped setup, except that BM25 now uses the fixed tokenizer)
 ```
-
-Full per-type tables and the saved reports live in
-[`evaluation/results/`](../evaluation/results/README.md).
