@@ -42,8 +42,9 @@ Answer:"""
 
 
 # The pre-2026-10 grounded prompt: refuse whenever the context is not "enough". It refused
-# about a third of answerable eval questions, mostly with the evidence in context, so it is
-# kept only to reproduce before/after evals (PROMPT_MODE=strict).
+# about a third of answerable eval questions at 5 candidates and a fifth at 10, mostly with
+# the evidence in context, so it is kept only to reproduce before/after evals
+# (PROMPT_MODE=strict).
 STRICT_PROMPT = """You are a careful research assistant. Answer the question using ONLY the numbered context below.
 
 Rules:

@@ -51,8 +51,9 @@ class Settings(BaseSettings):
     RETRIEVAL_MODE: str = "hybrid"
     QUERY_TRANSFORM: str = "none"
     # Candidates fetched before rerank, and passages kept for the answer. With TOP_K equal to
-    # RERANK_TOP_K the reranker can only reorder; at 5 the grounded prompt refused a third of
-    # answerable eval questions, at 10 under 5% (evaluation/results/*_contract_*).
+    # RERANK_TOP_K the reranker can only reorder. On the answer-contract eval, 10 candidates cut
+    # the strict prompt's refusals from about a third to a fifth; the grounded prompt refused
+    # under 5% at 5 or 10 (evaluation/results/README.md).
     TOP_K: int = 10
     RERANK_TOP_K: int = 5
 
