@@ -298,7 +298,7 @@ and, in part, to choosing passages from only 5 candidates. Per-type tables on th
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+pip install -c constraints.txt -e ".[dev]" # pinned to the versions CI uses
 ruff check .
 pytest -q                                  # 346 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
