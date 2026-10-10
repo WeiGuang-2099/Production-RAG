@@ -42,3 +42,18 @@ test("citation markers render as chips and report clicks", async () => {
   await userEvent.click(screen.getByRole("button", { name: "[1]" }));
   expect(onCitation).toHaveBeenCalledWith(1, 1);
 });
+
+test("only citation links bypass react-markdown's URL filter", () => {
+  render(
+    <MessageThread
+      messages={[
+        { role: "user", content: "q" },
+        { role: "assistant",
+          content: "see [1], [paper](https://arxiv.org/abs/1706.03762) and [x](javascript:alert(1))" },
+      ]}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "[1]" })).toBeInTheDocument();
+  expect(screen.getByText("paper").closest("a")).toHaveAttribute("href", "https://arxiv.org/abs/1706.03762");
+  expect(screen.getByText("x").closest("a")?.getAttribute("href") ?? "").not.toMatch(/^javascript:/i);
+});
