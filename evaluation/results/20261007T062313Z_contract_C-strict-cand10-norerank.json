@@ -16,7 +16,7 @@
   "graph_extractor": "none",
   "keyword_backend": "local",
   "collection": "rag_docs",
-  "data_dir": "C:/Users/lenovo/AppData/Local/Temp/claude/D--codeproject-Production-RAG---/55b0326a-204c-4842-a996-071f4c672062/scratchpad/data_v1",
+  "data_dir": "<outside the repo>/data_v1",
   "judge_model": "gpt-4o",
   "git_commit": "05fd595",
   "git_dirty": true,

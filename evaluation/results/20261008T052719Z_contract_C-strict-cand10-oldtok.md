@@ -2,7 +2,7 @@
 
 2026-10-08T05:27:19+00:00 | mode `standard` | 3 run(s) | 70 questions (27 unanswerable)
 
-Config: mode=standard, runs=3, top_k=10, rerank_top_k=5, llm_model=gpt-4o, llm_temperature=0.0, prompt_mode=strict, prompt_sha=8c265b584e, retrieval_mode=hybrid, reranker=cohere, graph_extractor=none, keyword_backend=local, collection=rag_docs, data_dir=D:/codeproject/Production RAG 系统/docs/superpowers/evidence/2026-10-07-contract-runs/data_v1, judge_model=gpt-4o, git_commit=4375550, git_dirty=True, note=pre-fix BM25 tokenizer: run from a worktree of 4375550 with app/retrieval/bm25_store.py taken from f2036a8 and DATA_DIR pointing at the index saved before the fix
+Config: mode=standard, runs=3, top_k=10, rerank_top_k=5, llm_model=gpt-4o, llm_temperature=0.0, prompt_mode=strict, prompt_sha=8c265b584e, retrieval_mode=hybrid, reranker=cohere, graph_extractor=none, keyword_backend=local, collection=rag_docs, data_dir=docs/superpowers/evidence/2026-10-07-contract-runs/data_v1, judge_model=gpt-4o, git_commit=4375550, git_dirty=True, note=pre-fix BM25 tokenizer: run from a worktree of 4375550 with app/retrieval/bm25_store.py taken from f2036a8 and DATA_DIR pointing at the index saved before the fix
 
 Rates are mean over runs (min-max in parentheses).
 
