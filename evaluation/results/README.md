@@ -65,8 +65,9 @@ How to read the table:
   three passes. No unanswerable question flipped in any run, so A's 15.7% is 11 of 70.
 - **Cost** covers every model call, rerank (Cohere list price, \$2 per 1,000 searches) and query
   embedding.
-- **Latency** is per full answer, with 4 questions in flight (`--workers 4`). Agent mode (F) ran
-  one question at a time.
+- **Latency** is per full answer. The 2026-10-07 runs answered one question at a time
+  (`--workers 1`); the 2026-10-08 reruns used the default of 4 in flight (`--workers 4`), except
+  Agent mode (F), which always runs one question at a time.
 - **Run and pass:** here a run is one configuration, three passes over the questions. The reports
   and the `--runs` flag call each pass a run ("3 run(s)", "mean over runs").
 

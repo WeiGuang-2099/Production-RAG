@@ -9,7 +9,7 @@ guardrails, an MCP server and an evaluation harness that measures what each retr
 
 [![CI](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WeiGuang-2099/Production-RAG/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![tests](https://img.shields.io/badge/tests-346%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-348%20passing-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -51,14 +51,15 @@ follow-ups, over public ML papers standing in for a team's documents (live OpenA
 | **"Not in the documents" instead of a guess** | In Standard mode (the UI default) it declined all 27 test questions the documents cannot answer, in every run, and refused 2 of 43 answerable ones (4.7%, the same two in two sessions; 31.8% as first shipped; see [Evaluation](#evaluation)) | The 2 it still refuses, in every pass, are one cross-paper comparison (the other 6 multi-paper questions are answered) and one question that presupposes a single value of K, which the paper does not use (its reference answer was also wrong until dataset v1.1); about a quarter of answers are judged only partially correct against the reference |
 | **The right document among look-alikes** | With 24 look-alike papers added (4.6x the chunks), dense retrieval still put a relevant paper in the top 5 for all 48 questions but ranked it lower (MRR, 1.0 when a relevant paper always ranks first: 0.979 → 0.844); reranking won back little of it (0.862) | One Cohere call and ~0.3s per question; keyword search slightly hurts here (one of 48 questions lost its paper from the top 5), likely because look-alike papers repeat names like "BERT" |
 | **Follow-up questions** | Follow-ups such as "what about its training cost?" are rewritten into standalone questions first: the right paper reached the top 5 for all 18 test follow-ups, up from 14 as typed | One gpt-4o-mini call per turn that carries chat history (in the UI, every turn after the first): ~0.85s median, 4.2s for the slowest of 18 |
-| **A known price and speed per answer** | Measured over every model, rerank and embedding call: \$8.47 per 1,000 questions in Standard mode (\$10.77 in Agent mode), with full answers at 1.3s median and 2.7-3.6s p95 across two sessions, 4 questions in flight | Each response still reports only its answer call (plus any follow-up rewrite), and a cache hit repeats the original figures; no load test yet |
+| **A known price and speed per answer** | Measured over every model, rerank and embedding call: \$8.47 per 1,000 questions in Standard mode (\$10.77 in Agent mode), with full answers at 1.3s median in both sessions, p95 2.7s one question at a time and 3.6s with 4 in flight | Each response still reports only its answer call (plus any follow-up rewrite), and a cache hit repeats the original figures; no load test yet |
 
 Measurement conditions: the contract numbers are 3 passes per question at temperature 0 with the
 shipped defaults (10 candidates reranked to 5, local BM25, graph off) on the 6-paper corpus,
 labeled by a gpt-4o judge, from runs on 2026-10-07 and 2026-10-08 in which every rerank call
 succeeded (the five reranker-off runs of 2026-10-07 are reported separately). The exception is the
 31.8% as-first-shipped figure: provider-default temperature, 5 candidates, the strict prompt and
-the old tokenizer. Latency was measured with 4 questions in flight (Agent mode: one at a time). The
+the old tokenizer. Latency was measured one question at a time on 2026-10-07 and with 4 questions
+in flight on 2026-10-08 (Agent mode always runs one at a time). The
 look-alike and follow-up rows score the top 5 of 10 reranked candidates on the local BM25 store
 (Compose uses OpenSearch); the follow-up row comes from a 2026-07-12 run, before the BM25 tokenizer
 fix.
@@ -300,7 +301,7 @@ and, in part, to choosing passages from only 5 candidates. Per-type tables on th
 ```bash
 pip install -c constraints.txt -e ".[dev]" # pinned to the versions CI uses
 ruff check .
-pytest -q                                  # 346 tests, all mocked (no services needed)
+pytest -q                                  # 348 tests, all mocked (no services needed)
 pytest --cov=app --cov-report=term-missing
 ```
 
