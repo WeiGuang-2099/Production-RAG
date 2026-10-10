@@ -1,6 +1,19 @@
+from pathlib import Path
+
 import pytest
+from dotenv import dotenv_values
 
 from app.config import Settings
+
+ENV_EXAMPLE = Path(__file__).resolve().parents[1] / ".env.example"
+
+
+def test_env_example_values_carry_no_inline_comments():
+    """python-dotenv reads `KEY=   # note` as the value "# note" when KEY is empty, so a copied
+    .env would set it to the comment text (this once switched API key auth on). Notes for empty
+    keys belong on their own line."""
+    leaked = {k: v for k, v in dotenv_values(ENV_EXAMPLE).items() if v and v.lstrip().startswith("#")}
+    assert leaked == {}
 
 
 def test_default_settings():
