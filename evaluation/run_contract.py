@@ -422,6 +422,15 @@ def judge_all(records: list[dict], items: dict[str, dict], judge_model: str | No
 
 # ── Reporting ──────────────────────────────────────────
 
+def portable_path(path: str) -> str:
+    """A path that is safe to publish: relative to the repo inside it, only its last part outside."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(HERE.parent).as_posix()
+    except ValueError:
+        return f"<outside the repo>/{resolved.name}"
+
+
 def config_snapshot(args: argparse.Namespace) -> dict:
     from app.config import get_settings
     from app.core.prompts import select_prompt
@@ -440,7 +449,7 @@ def config_snapshot(args: argparse.Namespace) -> dict:
         "prompt_mode": s.PROMPT_MODE, "prompt_sha": prompt_sha, "retrieval_mode": s.RETRIEVAL_MODE,
         "reranker": s.RERANKER_PROVIDER,
         "graph_extractor": s.GRAPH_EXTRACTOR, "keyword_backend": s.KEYWORD_BACKEND,
-        "collection": s.COLLECTION_NAME, "data_dir": s.DATA_DIR,
+        "collection": s.COLLECTION_NAME, "data_dir": portable_path(s.DATA_DIR),
         "judge_model": args.judge_model or s.LLM_MODEL, "git_commit": commit, "git_dirty": dirty,
     }
 

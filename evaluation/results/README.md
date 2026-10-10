@@ -65,8 +65,9 @@ How to read the table:
   three passes. No unanswerable question flipped in any run, so A's 15.7% is 11 of 70.
 - **Cost** covers every model call, rerank (Cohere list price, \$2 per 1,000 searches) and query
   embedding.
-- **Latency** is per full answer, with 4 questions in flight (`--workers 4`). Agent mode (F) ran
-  one question at a time.
+- **Latency** is per full answer. The 2026-10-07 runs answered one question at a time
+  (`--workers 1`); the 2026-10-08 reruns used the default of 4 in flight (`--workers 4`), except
+  Agent mode (F), which always runs one question at a time.
 - **Run and pass:** here a run is one configuration, three passes over the questions. The reports
   and the `--runs` flag call each pass a run ("3 run(s)", "mean over runs").
 
@@ -124,11 +125,13 @@ What the runs show:
   the question, not why the grader rejected the passages. Agent mode stays opt-in.
 - **Per question at the default (E, E2, F):** q024 (Transformer vs BERT positional encoding, a
   cross-paper comparison) and q047 (RAG's K, which the paper gives as "k ∈ {5, 10} for training
-  and set k for test time using dev data" rather than one value) were refused in every pass. q020
+  and set k for test time using dev data" rather than one value; its reference answer was wrong
+  until dataset v1.1) were refused in every pass. q020
   (it names DeBERTa XXL as the largest model LoRA was evaluated on; the answer is GPT-3 175B) was
   wrong in A (1 pass), P (2 passes), P5 (3 passes) and the reranker-off E' and F' (3 passes each),
-  never in E, E2 or F. So there is no recurring wrong answer at the default. P refused only q024
-  and answered q047 wrongly once.
+  never in E, E2 or F. So there is no recurring wrong answer at the default. P refused only q024;
+  its q047 answers were judged against the old, wrong reference, once as incorrect (see the
+  [dataset changelog](../DATASET_CHANGELOG.md)).
 - **Judges:** gpt-4o and gpt-4o-mini agree on every refusal and fabrication label, but on only 81%
   of "correct" vs "partially correct" calls (judge check below).
 

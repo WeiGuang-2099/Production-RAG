@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import { linkCitations } from "../../api/citations";
 import type { ChatMessage } from "../../hooks/useChat";
 import { AgentTrace } from "./AgentTrace";
@@ -33,7 +33,8 @@ export function MessageThread({
             <AgentTrace steps={m.steps} />
             <div className="prose prose-sm max-w-none text-ink">
               <Markdown
-                urlTransform={(url) => url}
+                // The default filter empties our citation: links; let only those through.
+                urlTransform={(url) => (url.startsWith("citation:") ? url : defaultUrlTransform(url))}
                 components={{
                   a: ({ href, children }) =>
                     href?.startsWith("citation:") ? (

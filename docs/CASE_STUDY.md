@@ -99,8 +99,9 @@ stops on a failed rerank call.
 Still unsolved under the new default:
 
 - **Still refused, in every pass of Standard and Agent mode:** a cross-paper comparison
-  (Transformer vs BERT positional encoding, q024), and a question whose answer the paper gives as
-  two tried values ("k ∈ {5, 10}", set on dev data) rather than one (q047).
+  (Transformer vs BERT positional encoding, q024), and a question that presupposes one value of K
+  while the paper uses several (5 or 10 in training, 15 or 50 at test for open-domain QA; q047,
+  whose reference answer was also wrong until dataset v1.1).
 - **No recurring wrong answer at the default.** Two recurred elsewhere. q020 names DeBERTa XXL as
   the largest model LoRA was evaluated on; the answer is GPT-3 175B. It appeared with the old
   tokenizer, with 5 candidates and with the reranker off, never in the three default runs. q028
@@ -134,18 +135,19 @@ to 9.3%, Agent mode 4.7% to 7.0%), lowered correct answers in all four and raise
 no measurable difference (3.9% refused with it, 4.7% without). That supports the default of
 retrieving 10 candidates and keeping 5, which was set to match the retrieval ablation.
 
-## Finding 3: bugs that only live runs found
+## Finding 3: bugs the mocked unit tests missed
 
-Mocked unit tests (346 now) never touch a real API or a real container. Running the system for real
-found:
+Mocked unit tests (348 now) never touch a real API or a real container, and none of the bugs below
+was caught by one. Half were found by running the system for real; the other half by reviewing the
+code against what the docs claimed, each then confirmed with a command or a script.
 
-- **June:**
+- **Found by running it, June:**
   - The graph extractor crashed on null triples, dropping a paper's whole graph.
   - RAGAS stopped importing after a LangChain major-version drift (fixed with a small
     compatibility shim).
   - Cohere 429s on a trial key made the reranker fall back silently to unranked results, which
     quietly contaminated the first ablation. Rate-limit errors now retry with backoff.
-- **October:**
+- **Found by running it, October:**
   - The reranker fell back silently again. The Cohere key hit its billing cap (HTTP 402), which,
     unlike a 429, is not retried, and five answer-contract runs went on with the reranker off.
     Their reports looked valid; grepping the run logs for `rerank_failed` caught it. Since 230d254
@@ -154,18 +156,21 @@ found:
     from unranked passages. The affected configurations (strict and partial-answer at 10
     candidates, partial-answer at 5, Agent mode) were rerun with the reranker working; the strict
     repeat's configuration already had a valid run from before the cap.
-  - The Docker Compose stack never started: Qdrant's health check called `curl`, which the image
-    does not ship.
-  - The app's logs were never emitted: modules logged through stdlib loggers, but only structlog
-    was configured.
-  - The BM25 tokenizer kept punctuation glued to words, so every question's last word ("bert?")
-    never matched. Fixing it improved MRR at 6 papers and hurt at 30, because correct keyword
-    matching surfaces look-alikes.
   - The Quick start's example question ("What does the Transformer eliminate?", with only that
     paper ingested) was refused in 8 of 11 live tries: the passage stating the answer missed the
     top 5. The Quick start now asks the fuller question from the chat screenshot, which answered 5
     of 5 with a citation (a hand check noted in commit eea7ec3, not a saved report).
-  - The price table billed a dated gpt-4o-mini id at gpt-4o rates.
+- **Found by review, October, then confirmed:**
+  - The Docker Compose stack did not start as shipped: Qdrant's health check called `curl`, which
+    the image (checked on 2026-10-06) does not ship.
+  - The app's logs were never emitted: modules logged through stdlib loggers, but only structlog
+    was configured.
+  - The BM25 tokenizer kept punctuation glued to words, so a question's last word ("bert?") almost
+    never matched, and every eval question ends in punctuation. Fixing it improved MRR at 6 papers
+    and slightly hurt at 30, likely because correct keyword matching also surfaces the look-alikes
+    (not checked question by question).
+  - The price table would have billed a dated gpt-4o-mini id at gpt-4o rates (no run used a dated
+    id, so no cost was misreported).
   - The shipped retrieval depth differed from the one every retrieval eval measured.
 
 ## Finding 4: Agent mode does not pay for itself on this question set
@@ -193,8 +198,9 @@ fix would pass the grader's reason to the rewriter.
 - **Per question, every call priced** (models, Cohere reranks, query embeddings): \$8.47 per
   1,000 questions in Standard mode and \$10.77 in Agent mode. The in-app per-answer figure covers
   only the answer call and any follow-up rewrite.
-- **Full answers:** Standard mode p50 1.3s, p95 2.7-3.6s across two sessions, measured with 4
-  questions in flight. Agent mode, one question at a time: p50 3.4s.
+- **Full answers:** Standard mode p50 1.3s in both sessions; p95 2.7s one question at a time
+  (2026-10-07) and 3.6s with 4 questions in flight (2026-10-08). Agent mode, one question at a
+  time: p50 3.4s.
 - **Retrieval:** the July change that cached stores and parallelized the retrieval legs halved
   retrieval latency (p50 ~1.4s to ~0.64s) with bit-identical retrieval scores.
 - **Ingest:** graph extraction is one gpt-4o call per chunk; 479 chunks took ~32 minutes and were

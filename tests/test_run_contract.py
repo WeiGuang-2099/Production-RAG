@@ -15,6 +15,7 @@ from evaluation.run_contract import (
     is_exact_refusal,
     parse_judge_json,
     percentile,
+    portable_path,
     render_markdown,
     rerank_fallback,
     summarize,
@@ -218,6 +219,12 @@ def test_merged_records_without_the_count_are_not_reported_as_clean():
     assert rerank_fallback(records) == {"failed_calls": 0, "answers": 0, "of": 1, "not_recorded": 4}
     md = render_markdown(_report(records))
     assert "| answers from unranked passages (rerank failed) | 0 of 1 (4 more not recorded) |" in md
+
+
+def test_portable_path_keeps_local_paths_out_of_reports(tmp_path):
+    assert portable_path(str(rc.HERE.parent / "data")) == "data"
+    assert portable_path(str(rc.HERE.parent / "data_scale")) == "data_scale"
+    assert portable_path(str(tmp_path / "scratch" / "data_v1")) == "<outside the repo>/data_v1"
 
 
 def test_describe_error_puts_status_and_body_before_the_headers():

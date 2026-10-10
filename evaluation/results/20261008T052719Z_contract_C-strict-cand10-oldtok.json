@@ -16,7 +16,7 @@
   "graph_extractor": "none",
   "keyword_backend": "local",
   "collection": "rag_docs",
-  "data_dir": "D:/codeproject/Production RAG 系统/docs/superpowers/evidence/2026-10-07-contract-runs/data_v1",
+  "data_dir": "docs/superpowers/evidence/2026-10-07-contract-runs/data_v1",
   "judge_model": "gpt-4o",
   "git_commit": "4375550",
   "git_dirty": true,
