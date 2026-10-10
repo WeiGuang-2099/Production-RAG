@@ -99,8 +99,9 @@ stops on a failed rerank call.
 Still unsolved under the new default:
 
 - **Still refused, in every pass of Standard and Agent mode:** a cross-paper comparison
-  (Transformer vs BERT positional encoding, q024), and a question whose answer the paper gives as
-  two tried values ("k ∈ {5, 10}", set on dev data) rather than one (q047).
+  (Transformer vs BERT positional encoding, q024), and a question that presupposes one value of K
+  while the paper uses several (5 or 10 in training, 15 or 50 at test for open-domain QA; q047,
+  whose reference answer was also wrong until dataset v1.1).
 - **No recurring wrong answer at the default.** Two recurred elsewhere. q020 names DeBERTa XXL as
   the largest model LoRA was evaluated on; the answer is GPT-3 175B. It appeared with the old
   tokenizer, with 5 candidates and with the reranker off, never in the three default runs. q028

@@ -375,7 +375,7 @@
   {
     "id": "q047",
     "question": "What value of K (number of retrieved passages) does the RAG paper use in its main experiments?",
-    "ground_truth": "K = 5 retrieved passages (with some ablations exploring values up to 10).",
+    "ground_truth": "There is no single K: the models are trained with 5 or 10 retrieved documents and k at test time is set on dev data; test results use 15 retrieved documents for RAG-Token and 50 for RAG-Sequence on open-domain QA, and 10 for MS-MARCO and Jeopardy question generation.",
     "source_papers": ["rag"],
     "type": "long_tail",
     "difficulty": "hard"
@@ -383,7 +383,7 @@
   {
     "id": "q048",
     "question": "What decoding strategy is used in the main chain-of-thought experiments?",
-    "ground_truth": "Greedy decoding (the paper later explores self-consistency with sampling as a separate extension).",
+    "ground_truth": "Greedy decoding (the paper does not sample; it only cites follow-up work showing that a majority vote over sampled chains of thought can improve results).",
     "source_papers": ["cot"],
     "type": "long_tail",
     "difficulty": "hard"

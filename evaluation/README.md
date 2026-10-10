@@ -76,6 +76,9 @@ was drafted with model help and kept only after two independent checks of the
 answer-contract eval below uses them; the retrieval ablation and RAGAS runs use
 the original 48.
 
+Changes to the reference answers are listed in
+[`DATASET_CHANGELOG.md`](DATASET_CHANGELOG.md) (v1.1 corrected q047 and q048).
+
 ## Running the evaluation
 
 Steps 3-4 below run the RAGAS eval, kept for history: it scores every refusal
